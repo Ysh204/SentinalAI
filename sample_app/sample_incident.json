@@ -1,0 +1,6 @@
+{
+  "title": "Sample: add() returns the wrong result",
+  "error_message": "AssertionError: assert add(2, 3) == 5  (got -1)",
+  "stack_trace": "File \"test_buggy_app.py\", line 5, in test_add\n    assert add(2, 3) == 5",
+  "repository_path": "sample_app"
+}
