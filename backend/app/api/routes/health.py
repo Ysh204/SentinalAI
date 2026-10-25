@@ -17,4 +17,5 @@ def health(request: Request) -> HealthResponse:
         ai_provider=container.provider_name,
         gemini_configured=container.settings.gemini_configured,
         database_ready=db_ok,
+        victim_app_url=container.settings.victim_app_url,
     )

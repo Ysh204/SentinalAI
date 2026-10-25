@@ -14,10 +14,24 @@ const MOCK_SAMPLE_DIFF = `--- a/buggy_app.py
 +    return left + right`
 
 function statusClass(status: string) {
-  if (status === 'APPROVED' || status === 'VALIDATED') return 'good'
+  if (
+    status === 'APPROVED' ||
+    status === 'VALIDATED' ||
+    status === 'PATCH_VERIFIED' ||
+    status === 'MITIGATED' ||
+    status === 'RESOLVED'
+  )
+    return 'good'
   if (status === 'REJECTED' || status === 'FAILED' || status === 'VALIDATION_FAILED')
     return 'bad'
-  if (status === 'ANALYZING' || status === 'VALIDATING') return 'busy'
+  if (
+    status === 'ANALYZING' ||
+    status === 'VALIDATING' ||
+    status === 'TRIAGING' ||
+    status === 'MITIGATING' ||
+    status === 'REPLAYING'
+  )
+    return 'busy'
   return 'idle'
 }
 
@@ -26,11 +40,18 @@ function statusLabel(status: string) {
 }
 
 function stepIndex(status: string) {
-  if (status === 'APPROVED') return 4
+  if (status === 'APPROVED' || status === 'MITIGATED' || status === 'RESOLVED') return 4
   if (status === 'REJECTED') return -1
-  if (status === 'VALIDATED' || status === 'VALIDATION_FAILED') return 3
+  if (
+    status === 'VALIDATED' ||
+    status === 'VALIDATION_FAILED' ||
+    status === 'PATCH_VERIFIED' ||
+    status === 'MITIGATION_PROPOSED'
+  )
+    return 3
   if (status === 'PATCH_GENERATED') return 2
-  if (status === 'ANALYZED' || status === 'ANALYZING') return 1
+  if (status === 'ANALYZED' || status === 'ANALYZING' || status === 'TRIAGED' || status === 'TRIAGING')
+    return 1
   return 0
 }
 
@@ -182,6 +203,19 @@ export default function Console() {
       cancelled = true
     }
   }, [loadHealth, loadList])
+
+  useEffect(() => {
+    if (!health) return
+    const source = new EventSource('/api/events')
+    const refresh = () => {
+      void loadList()
+    }
+    source.addEventListener('incident', refresh)
+    return () => {
+      source.removeEventListener('incident', refresh)
+      source.close()
+    }
+  }, [health, loadList])
 
   useEffect(() => {
     if (!selectedId) {
@@ -421,7 +455,9 @@ export default function Console() {
   }
 
   const canApprove =
-    incident?.status === 'VALIDATED' && Boolean(incident.validation_results?.overall_passed)
+    (incident?.status === 'VALIDATED' && Boolean(incident.validation_results?.overall_passed)) ||
+    incident?.status === 'PATCH_VERIFIED' ||
+    incident?.status === 'MITIGATION_PROPOSED'
   const active = incident ? stepIndex(incident.status) : 0
   const counts = incidents.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = (acc[item.status] ?? 0) + 1
@@ -470,6 +506,34 @@ export default function Console() {
           <Icon name="plus" />
           <span>New Incident</span>
         </button>
+        {health ? (
+          <>
+            <button
+              type="button"
+              className="cs-new"
+              disabled={Boolean(busy)}
+              onClick={() => run('simulate', () => api.simulateIncident())}
+            >
+              <span>{busy === 'simulate' ? 'Simulating…' : 'Simulate incident'}</span>
+            </button>
+            <button
+              type="button"
+              className="cs-new"
+              disabled={Boolean(busy)}
+              onClick={() => run('break', () => api.breakCheckout('payments_outage'))}
+            >
+              <span>{busy === 'break' ? 'Breaking…' : 'Break checkout (outage)'}</span>
+            </button>
+            <button
+              type="button"
+              className="cs-new"
+              disabled={Boolean(busy)}
+              onClick={() => run('break-bug', () => api.breakCheckout('code_bug'))}
+            >
+              <span>{busy === 'break-bug' ? 'Breaking…' : 'Break checkout (code bug)'}</span>
+            </button>
+          </>
+        ) : null}
 
         <nav className="cs-nav" aria-label="Console">
           <a href="#top">
@@ -731,6 +795,58 @@ export default function Console() {
 
               {tab === 'flow' || tab === 'analysis' ? (
                 <>
+                  {incident.verdict ? (
+                    <article className="cs-bubble ai">
+                      <header>
+                        <span className="cs-mono-header">TRIAGE VERDICT</span>
+                        <span>
+                          {incident.verdict.category} · {Math.round(incident.verdict.confidence * 100)}%
+                        </span>
+                      </header>
+                      <p>
+                        Track: {incident.verdict.recommended_track}
+                        {incident.verdict.recommended_action
+                          ? ` · action ${incident.verdict.recommended_action}`
+                          : ''}
+                        {incident.verdict.escalate_to_human ? ' · escalated to human' : ''}
+                      </p>
+                      <ul>
+                        {incident.verdict.evidence.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                      <p className="cs-hint">{incident.verdict.disclaimer}</p>
+                    </article>
+                  ) : null}
+                  {incident.replay ? (
+                    <article className="cs-bubble ai">
+                      <header>
+                        <span className="cs-mono-header">REQUEST REPLAY</span>
+                      </header>
+                      <p>
+                        {incident.replay.before_ok ? '✅ before' : '❌ before'} →{' '}
+                        {incident.replay.after_ok ? '✅ after' : '❌ after'} ({incident.replay.request_path})
+                      </p>
+                    </article>
+                  ) : null}
+                  {incident.mitigation ? (
+                    <article className="cs-bubble ai">
+                      <header>
+                        <span className="cs-mono-header">SIMULATED MITIGATION</span>
+                        <span>{incident.mitigation.status}</span>
+                      </header>
+                      <p>{incident.mitigation.detail}</p>
+                    </article>
+                  ) : null}
+                  {incident.postmortem ? (
+                    <article className="cs-bubble ai">
+                      <header>
+                        <span className="cs-mono-header">POST-MORTEM</span>
+                        <span>{incident.postmortem.root_cause}</span>
+                      </header>
+                      <p>{incident.postmortem.summary}</p>
+                    </article>
+                  ) : null}
                   <article className="cs-bubble user">
                     <header>
                       <span className="cs-mono-header">REPORTED DIAGNOSTIC PAYLOAD</span>
@@ -856,6 +972,31 @@ export default function Console() {
                 type="button"
                 className="cs-btn dark"
                 disabled={Boolean(busy)}
+                onClick={() => run('triage', () => api.triage(incident.id))}
+              >
+                <Icon name="sparkles" />
+                <span>{busy === 'triage' ? 'Triaging…' : 'Run Triage'}</span>
+              </button>
+              <button
+                type="button"
+                className="cs-btn ghost"
+                disabled={Boolean(busy)}
+                onClick={() => run('replay', () => api.replay(incident.id))}
+              >
+                <span>{busy === 'replay' ? 'Replaying…' : 'Replay request'}</span>
+              </button>
+              <button
+                type="button"
+                className="cs-btn ghost"
+                disabled={Boolean(busy)}
+                onClick={() => run('postmortem', () => api.postmortem(incident.id))}
+              >
+                <span>{busy === 'postmortem' ? 'Writing…' : 'Generate post-mortem'}</span>
+              </button>
+              <button
+                type="button"
+                className="cs-btn dark"
+                disabled={Boolean(busy)}
                 onClick={() => run('analyze', () => api.analyze(incident.id))}
               >
                 <Icon name="sparkles" />
@@ -933,12 +1074,12 @@ export default function Console() {
             <b>{counts.RECEIVED ?? 0}</b>
           </article>
           <article>
-            <small>VALIDATED</small>
-            <b>{counts.VALIDATED ?? 0}</b>
+            <small>MITIGATED</small>
+            <b>{(counts.MITIGATED ?? 0) + (counts.VALIDATED ?? 0) + (counts.PATCH_VERIFIED ?? 0)}</b>
           </article>
           <article>
             <small>APPROVED</small>
-            <b>{counts.APPROVED ?? 0}</b>
+            <b>{(counts.APPROVED ?? 0) + (counts.RESOLVED ?? 0)}</b>
           </article>
         </div>
 

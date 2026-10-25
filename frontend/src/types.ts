@@ -1,14 +1,22 @@
 export type IncidentStatus =
   | 'RECEIVED'
+  | 'TRIAGING'
+  | 'TRIAGED'
   | 'ANALYZING'
   | 'ANALYZED'
   | 'PATCH_GENERATED'
   | 'VALIDATING'
   | 'VALIDATED'
   | 'VALIDATION_FAILED'
+  | 'REPLAYING'
+  | 'PATCH_VERIFIED'
+  | 'MITIGATION_PROPOSED'
+  | 'MITIGATING'
+  | 'MITIGATED'
   | 'APPROVED'
   | 'REJECTED'
   | 'FAILED'
+  | 'RESOLVED'
 
 export type HealthResponse = {
   status: string
@@ -18,6 +26,7 @@ export type HealthResponse = {
   ai_provider: string
   gemini_configured: boolean
   database_ready: boolean
+  victim_app_url?: string | null
 }
 
 export type HistoryEvent = {
@@ -63,6 +72,55 @@ export type ApprovalRecord = {
   actor: string
 }
 
+export type Verdict = {
+  category: string
+  confidence: number
+  evidence: string[]
+  recommended_track: string
+  escalate_to_human: boolean
+  recommended_action: string | null
+  provider: string
+  disclaimer: string
+}
+
+export type ReplayResult = {
+  before_status: number | null
+  after_status: number | null
+  before_ok: boolean
+  after_ok: boolean
+  request_path: string
+  detail: string
+  sandbox: string | null
+}
+
+export type MitigationRecord = {
+  action: string
+  simulated: boolean
+  status: string
+  executed_at: string | null
+  actor: string | null
+  error_rate_before: number | null
+  error_rate_after: number | null
+  recovered: boolean | null
+  detail: string
+}
+
+export type Postmortem = {
+  summary: string
+  root_cause: string
+  action_items: string[]
+  provider: string
+  generated_at: string | null
+}
+
+export type MetricsResponse = {
+  incidents_total: number
+  by_status: Record<string, number>
+  by_category: Record<string, number>
+  mean_time_to_resolution_seconds: number | null
+  open_count: number
+}
+
 export type Incident = {
   id: string
   title: string
@@ -70,9 +128,18 @@ export type Incident = {
   stack_trace: string
   repository_path: string | null
   status: IncidentStatus
+  source?: string
+  fingerprint?: string | null
+  occurrence_count?: number
+  captured_request?: Record<string, unknown> | null
+  logs?: string[]
+  verdict?: Verdict | null
   root_cause_analysis: AnalysisResult | null
   proposed_patch: string | null
   validation_results: ValidationResults | null
+  replay?: ReplayResult | null
+  mitigation?: MitigationRecord | null
+  postmortem?: Postmortem | null
   approval: ApprovalRecord | null
   history: HistoryEvent[]
   created_at: string

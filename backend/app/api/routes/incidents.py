@@ -33,3 +33,23 @@ def generate_patch(incident_id: str, request: Request) -> IncidentPublic:
 @router.post("/{incident_id}/validate", response_model=IncidentPublic)
 def validate_incident(incident_id: str, request: Request) -> IncidentPublic:
     return request.app.state.container.orchestrator.validate(incident_id)
+
+
+@router.post("/{incident_id}/triage", response_model=IncidentPublic)
+def triage_incident(incident_id: str, request: Request) -> IncidentPublic:
+    return request.app.state.container.orchestrator.triage_incident(incident_id)
+
+
+@router.post("/{incident_id}/replay", response_model=IncidentPublic)
+def replay_incident(incident_id: str, request: Request) -> IncidentPublic:
+    return request.app.state.container.orchestrator.replay(incident_id)
+
+
+@router.post("/{incident_id}/mitigate", response_model=IncidentPublic)
+def propose_mitigation(incident_id: str, request: Request) -> IncidentPublic:
+    return request.app.state.container.orchestrator.propose_mitigation(incident_id)
+
+
+@router.post("/{incident_id}/postmortem", response_model=IncidentPublic)
+def generate_postmortem(incident_id: str, request: Request) -> IncidentPublic:
+    return request.app.state.container.orchestrator.postmortem(incident_id)

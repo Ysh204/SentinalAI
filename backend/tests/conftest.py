@@ -21,6 +21,8 @@ def tmp_settings(tmp_path: Path):
         database_path=tmp_path / "test.db",
         workspace_root=tmp_path / "workspaces",
         log_level="WARNING",
+        victim_app_url="inline",
+        health_watcher_enabled=False,
     )
 
 
