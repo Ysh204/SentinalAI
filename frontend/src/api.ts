@@ -1,6 +1,13 @@
 import type { HealthResponse, Incident, IncidentCreate } from './types'
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+
+function bases(): string[] {
+  if (envBase) return [envBase.replace(/\/$/, '')]
+  // Hit uvicorn on the machine that opened the browser first. The Vite proxy
+  // often 502s when the UI runs in WSL and the API runs on Windows.
+  return ['http://127.0.0.1:8000', 'http://localhost:8000', '']
+}
 
 class ApiError extends Error {
   status: number
@@ -11,32 +18,44 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(`${BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-      ...init,
-    })
-  } catch {
-    throw new ApiError(
-      'Cannot reach the SentinelAI backend. Start uvicorn on port 8000, then refresh.',
-      0,
-    )
-  }
+  let lastError: ApiError | undefined
+  const extra = { headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init }
 
-  if (!response.ok) {
-    let detail = response.statusText
+  for (const base of bases()) {
+    let response: Response
     try {
-      const body = (await response.json()) as { detail?: string }
-      if (body.detail) detail = body.detail
+      response = await fetch(`${base}${path}`, extra)
     } catch {
-      detail = await response.text()
+      lastError = new ApiError(
+        'Cannot reach the SentinelAI backend. Start uvicorn on port 8000, then refresh.',
+        0,
+      )
+      continue
     }
-    throw new ApiError(detail || 'Request failed', response.status)
+
+    if (!response.ok) {
+      if (response.status >= 500 && !envBase) {
+        lastError = new ApiError('Cannot reach uvicorn on this address; trying the next.', response.status)
+        continue
+      }
+      let detail = response.statusText
+      try {
+        const body = (await response.json()) as { detail?: string }
+        if (body.detail) detail = body.detail
+      } catch {
+        detail = await response.text()
+      }
+      throw new ApiError(detail || 'Request failed', response.status)
+    }
+
+    if (response.status === 204) return undefined as T
+    return (await response.json()) as T
   }
 
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
+  throw (
+    lastError ??
+    new ApiError('Cannot reach the SentinelAI backend. Start uvicorn on port 8000, then refresh.', 0)
+  )
 }
 
 export const api = {
