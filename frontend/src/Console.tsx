@@ -504,35 +504,36 @@ export default function Console() {
           }}
         >
           <Icon name="plus" />
-          <span>New Incident</span>
+          <span>New incident</span>
         </button>
         {health ? (
-          <>
+          <div className="cs-demo-actions">
+            <p className="cs-section-label">Demo shop</p>
             <button
               type="button"
-              className="cs-new"
+              className="cs-new ghost"
               disabled={Boolean(busy)}
               onClick={() => run('simulate', () => api.simulateIncident())}
             >
-              <span>{busy === 'simulate' ? 'Simulating…' : 'Simulate incident'}</span>
+              {busy === 'simulate' ? '…' : 'Simulate'}
             </button>
             <button
               type="button"
-              className="cs-new"
+              className="cs-new ghost"
               disabled={Boolean(busy)}
               onClick={() => run('break', () => api.breakCheckout('payments_outage'))}
             >
-              <span>{busy === 'break' ? 'Breaking…' : 'Break checkout (outage)'}</span>
+              {busy === 'break' ? '…' : 'Outage'}
             </button>
             <button
               type="button"
-              className="cs-new"
+              className="cs-new ghost"
               disabled={Boolean(busy)}
               onClick={() => run('break-bug', () => api.breakCheckout('code_bug'))}
             >
-              <span>{busy === 'break-bug' ? 'Breaking…' : 'Break checkout (code bug)'}</span>
+              {busy === 'break-bug' ? '…' : 'Code bug'}
             </button>
-          </>
+          </div>
         ) : null}
 
         <nav className="cs-nav" aria-label="Console">
@@ -574,13 +575,9 @@ export default function Console() {
         </ul>
 
         <div className="cs-plan">
-          <div className="cs-plan-badge">
-            <span className="cs-mono-tag">// SAFETY PROTOCOL</span>
-          </div>
-          <strong>Human-Gated Remediation</strong>
-          <small>
-            Candidate diffs run solely inside ephemeral sandboxes with real tests. Source repos are never modified without explicit human sign-off.
-          </small>
+          <span className="cs-mono-tag">Safety</span>
+          <strong>Human gate</strong>
+          <small>Patches stay in a sandbox. Nothing merges without approval.</small>
         </div>
       </aside>
 
@@ -588,33 +585,31 @@ export default function Console() {
         <header className="cs-topbar">
           <div>
             <p className="cs-kicker">
-              {composing
-                ? 'Incident Dispatch // Sandbox Triage'
-                : incident
-                  ? 'Runtime Diagnostic // Execution Trace'
-                  : 'Incident Runtime // Governance Engine'}
+              {composing ? 'New incident' : incident ? 'Incident console' : 'Incident console'}
             </p>
             <h1 className="cs-editorial-heading">
               {composing ? (
-                <>Submit failure telemetry for <em>sandboxed triage</em></>
+                <>Submit a <em>failure</em></>
               ) : incident ? (
-                <>Runtime incident <em>{incident.title}</em></>
+                <em>{incident.title}</em>
               ) : (
-                <>Connect runtime failures to <em>verified patches</em></>
+                <>Select an <em>incident</em></>
               )}
             </h1>
             <p className="cs-editorial-sub">
-              SentinelAI isolates root causes, synthesizes candidate diffs in disposable workspaces, and awaits human verification — without giving agents autonomous write access to your repository.
+              {incident
+                ? `${statusLabel(incident.status)} · sandbox only · human approval required`
+                : 'Triage, patch, or mitigate — original repos stay untouched.'}
             </p>
           </div>
           <div className={`cs-health ${health ? 'up' : 'down'}`}>
             <span className="cs-portal-dot" />
             <div>
-              <strong>{health ? 'Backend Operational' : 'Interactive Sandbox'}</strong>
+              <strong>{health ? 'Backend live' : 'Offline sandbox'}</strong>
               <small>
                 {health
-                  ? `${health.ai_provider} · database ready`
-                  : 'Simulation active — full loop enabled'}
+                  ? `${health.ai_provider} · db ready`
+                  : 'Start uvicorn on :8000'}
               </small>
             </div>
           </div>
@@ -765,7 +760,7 @@ export default function Console() {
                     }
                   >
                     <span>{String(i + 1).padStart(2, '0')}</span>
-                    <div className="cs-step-name">{label.replace('_', ' ').toLowerCase()}</div>
+                    <div className="cs-step-name">{label}</div>
                   </li>
                 ))}
               </ol>
@@ -774,10 +769,10 @@ export default function Console() {
               <div className="cs-tabs" role="tablist">
                 {(
                   [
-                    ['flow', 'Overview & Trace'],
-                    ['analysis', 'Root Cause'],
-                    ['patch', 'Candidate Diff'],
-                    ['checks', 'Validation Suite'],
+                    ['flow', 'Overview'],
+                    ['analysis', 'Root cause'],
+                    ['patch', 'Patch'],
+                    ['checks', 'Checks'],
                   ] as const
                 ).map(([id, label]) => (
                   <button
@@ -793,106 +788,101 @@ export default function Console() {
                 ))}
               </div>
 
-              {tab === 'flow' || tab === 'analysis' ? (
-                <>
-                  {incident.verdict ? (
-                    <article className="cs-bubble ai">
-                      <header>
-                        <span className="cs-mono-header">TRIAGE VERDICT</span>
-                        <span>
-                          {incident.verdict.category} · {Math.round(incident.verdict.confidence * 100)}%
-                        </span>
-                      </header>
-                      <p>
-                        Track: {incident.verdict.recommended_track}
-                        {incident.verdict.recommended_action
-                          ? ` · action ${incident.verdict.recommended_action}`
-                          : ''}
-                        {incident.verdict.escalate_to_human ? ' · escalated to human' : ''}
-                      </p>
-                      <ul>
-                        {incident.verdict.evidence.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                      <p className="cs-hint">{incident.verdict.disclaimer}</p>
-                    </article>
-                  ) : null}
-                  {incident.replay ? (
-                    <article className="cs-bubble ai">
-                      <header>
-                        <span className="cs-mono-header">REQUEST REPLAY</span>
-                      </header>
-                      <p>
-                        {incident.replay.before_ok ? '✅ before' : '❌ before'} →{' '}
-                        {incident.replay.after_ok ? '✅ after' : '❌ after'} ({incident.replay.request_path})
-                      </p>
-                    </article>
-                  ) : null}
-                  {incident.mitigation ? (
-                    <article className="cs-bubble ai">
-                      <header>
-                        <span className="cs-mono-header">SIMULATED MITIGATION</span>
-                        <span>{incident.mitigation.status}</span>
-                      </header>
-                      <p>{incident.mitigation.detail}</p>
-                    </article>
-                  ) : null}
-                  {incident.postmortem ? (
-                    <article className="cs-bubble ai">
-                      <header>
-                        <span className="cs-mono-header">POST-MORTEM</span>
-                        <span>{incident.postmortem.root_cause}</span>
-                      </header>
-                      <p>{incident.postmortem.summary}</p>
-                    </article>
-                  ) : null}
+              {tab === 'flow' ? (
+                <div className="cs-overview-grid">
                   <article className="cs-bubble user">
                     <header>
-                      <span className="cs-mono-header">REPORTED DIAGNOSTIC PAYLOAD</span>
+                      <span className="cs-mono-header">Error</span>
                       <time>{formatWhen(incident.created_at)}</time>
                     </header>
+                    <h2 className="cs-card-heading">What failed</h2>
                     <p>{incident.error_message}</p>
                     <em className={`cs-pill ${statusClass(incident.status)}`}>
                       {statusLabel(incident.status)}
                     </em>
                   </article>
-
-                  {incident.root_cause_analysis ? (
+                  {incident.verdict ? (
                     <article className="cs-bubble ai">
                       <header>
-                        <span className="cs-mono-header">AUTOMATED ROOT-CAUSE DIAGNOSIS</span>
-                        <span>
-                          {incident.root_cause_analysis.provider} ·{' '}
-                          {incident.root_cause_analysis.confidence} confidence
-                        </span>
+                        <span className="cs-mono-header">Triage</span>
+                        <span>{Math.round(incident.verdict.confidence * 100)}%</span>
                       </header>
-                      <p>{incident.root_cause_analysis.hypothesis}</p>
-                      <p className="cs-meta">
-                        Suspected Target: <code>{incident.root_cause_analysis.suspected_file ?? '—'}</code>
-                        {incident.root_cause_analysis.suspected_function ? (
-                          <> / <code>{incident.root_cause_analysis.suspected_function}</code></>
-                        ) : null}
+                      <h2 className="cs-card-heading">{incident.verdict.category.replaceAll('_', ' ')}</h2>
+                      <p>
+                        {incident.verdict.recommended_track}
+                        {incident.verdict.recommended_action
+                          ? ` · ${incident.verdict.recommended_action}`
+                          : ''}
                       </p>
-                      <p className="cs-hint">{incident.root_cause_analysis.disclaimer}</p>
-                      {incident.root_cause_analysis.recommended_next_steps.length > 0 && (
-                        <div className="cs-steps-box">
-                          <span className="cs-steps-title">Recommended Remediation Steps:</span>
-                          <ul>
-                            {incident.root_cause_analysis.recommended_next_steps.map((s) => (
-                              <li key={s}>{s}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      <ul>
+                        {incident.verdict.evidence.slice(0, 2).map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
                     </article>
-                  ) : tab === 'analysis' ? (
-                    <p className="cs-hint">No diagnostic analysis run yet. Select "Diagnose Root Cause" below.</p>
+                  ) : (
+                    <article className="cs-bubble user">
+                      <h2 className="cs-card-heading">No triage yet</h2>
+                      <p className="cs-hint">Run Triage to classify this incident.</p>
+                    </article>
+                  )}
+                  {incident.mitigation ? (
+                    <article className="cs-bubble ai cs-span-2">
+                      <header>
+                        <span className="cs-mono-header">Mitigation (simulated)</span>
+                        <span>{incident.mitigation.status}</span>
+                      </header>
+                      <p>{incident.mitigation.detail}</p>
+                    </article>
                   ) : null}
-                </>
+                  {incident.replay ? (
+                    <article className="cs-bubble ai cs-span-2">
+                      <header>
+                        <span className="cs-mono-header">Replay</span>
+                      </header>
+                      <p>
+                        {incident.replay.before_ok ? 'Before passed' : 'Before failed'} →{' '}
+                        {incident.replay.after_ok ? 'after passed' : 'after failed'}
+                      </p>
+                    </article>
+                  ) : null}
+                  {incident.postmortem ? (
+                    <article className="cs-bubble ai cs-span-2">
+                      <header>
+                        <span className="cs-mono-header">Post-mortem</span>
+                        <span>{incident.postmortem.root_cause}</span>
+                      </header>
+                      <p>{incident.postmortem.summary}</p>
+                    </article>
+                  ) : null}
+                </div>
               ) : null}
 
-              {tab === 'flow' || tab === 'patch' ? (
+              {tab === 'analysis' ? (
+                incident.root_cause_analysis ? (
+                  <article className="cs-bubble ai">
+                    <header>
+                      <span className="cs-mono-header">Root cause</span>
+                      <span>
+                        {incident.root_cause_analysis.provider} · {incident.root_cause_analysis.confidence}
+                      </span>
+                    </header>
+                    <h2 className="cs-card-heading">Hypothesis</h2>
+                    <p>{incident.root_cause_analysis.hypothesis}</p>
+                    <p className="cs-meta">
+                      File: <code>{incident.root_cause_analysis.suspected_file ?? '—'}</code>
+                      {incident.root_cause_analysis.suspected_function ? (
+                        <> / <code>{incident.root_cause_analysis.suspected_function}</code></>
+                      ) : null}
+                    </p>
+                    <p className="cs-hint">{incident.root_cause_analysis.disclaimer}</p>
+                  </article>
+                ) : (
+                  <p className="cs-hint">No diagnosis yet. Use Diagnose below.</p>
+                )
+              ) : null}
+
+              {tab === 'patch' ? (
                 incident.proposed_patch ? (
                   <article className="cs-code-card">
                     <header>
@@ -904,18 +894,16 @@ export default function Console() {
                     </header>
                     <pre>{incident.proposed_patch}</pre>
                   </article>
-                ) : tab === 'patch' ? (
-                  <p className="cs-hint">
-                    No patch synthesized yet. Select "Synthesize Patch" from the action dock below.
-                  </p>
-                ) : null
+                ) : (
+                  <p className="cs-hint">No patch yet. Use Synthesize below.</p>
+                )
               ) : null}
 
-              {tab === 'flow' || tab === 'checks' ? (
+              {tab === 'checks' ? (
                 incident.validation_results ? (
                   <article className="cs-bubble ai">
                     <header>
-                      <span className="cs-mono-header">AUTOMATED TEST SUITE VERIFICATION</span>
+                      <span className="cs-mono-header">Checks</span>
                       <em
                         className={`cs-pill ${incident.validation_results.overall_passed ? 'good' : 'bad'}`}
                       >
@@ -935,9 +923,9 @@ export default function Console() {
                       ))}
                     </ul>
                   </article>
-                ) : tab === 'checks' ? (
-                  <p className="cs-hint">No verification results recorded yet. Click "Run Test Suite" to validate.</p>
-                ) : null
+                ) : (
+                  <p className="cs-hint">No checks yet. Use Run tests below.</p>
+                )
               ) : null}
 
               {incident.approval ? (
@@ -949,7 +937,7 @@ export default function Console() {
 
               {tab === 'flow' ? (
                 <details className="cs-history">
-                  <summary>Audit Trail & Call Stack</summary>
+                  <summary>Timeline</summary>
                   <pre>{incident.stack_trace || '(empty stack trace)'}</pre>
                   <ul>
                     {incident.history.map((h, i) => (
@@ -975,32 +963,15 @@ export default function Console() {
                 onClick={() => run('triage', () => api.triage(incident.id))}
               >
                 <Icon name="sparkles" />
-                <span>{busy === 'triage' ? 'Triaging…' : 'Run Triage'}</span>
+                <span>{busy === 'triage' ? '…' : 'Triage'}</span>
               </button>
               <button
                 type="button"
                 className="cs-btn ghost"
-                disabled={Boolean(busy)}
-                onClick={() => run('replay', () => api.replay(incident.id))}
-              >
-                <span>{busy === 'replay' ? 'Replaying…' : 'Replay request'}</span>
-              </button>
-              <button
-                type="button"
-                className="cs-btn ghost"
-                disabled={Boolean(busy)}
-                onClick={() => run('postmortem', () => api.postmortem(incident.id))}
-              >
-                <span>{busy === 'postmortem' ? 'Writing…' : 'Generate post-mortem'}</span>
-              </button>
-              <button
-                type="button"
-                className="cs-btn dark"
                 disabled={Boolean(busy)}
                 onClick={() => run('analyze', () => api.analyze(incident.id))}
               >
-                <Icon name="sparkles" />
-                <span>{busy === 'analyze' ? 'Diagnosing…' : 'Diagnose Root Cause'}</span>
+                <span>{busy === 'analyze' ? '…' : 'Diagnose'}</span>
               </button>
               <button
                 type="button"
@@ -1008,8 +979,7 @@ export default function Console() {
                 disabled={Boolean(busy)}
                 onClick={() => run('patch', () => api.generatePatch(incident.id))}
               >
-                <Icon name="console" />
-                <span>{busy === 'patch' ? 'Synthesizing…' : 'Synthesize Patch'}</span>
+                <span>{busy === 'patch' ? '…' : 'Patch'}</span>
               </button>
               <button
                 type="button"
@@ -1017,8 +987,23 @@ export default function Console() {
                 disabled={Boolean(busy)}
                 onClick={() => run('validate', () => api.validate(incident.id))}
               >
-                <Icon name="check" />
-                <span>{busy === 'validate' ? 'Running Suite…' : 'Run Test Suite'}</span>
+                <span>{busy === 'validate' ? '…' : 'Tests'}</span>
+              </button>
+              <button
+                type="button"
+                className="cs-btn ghost"
+                disabled={Boolean(busy)}
+                onClick={() => run('replay', () => api.replay(incident.id))}
+              >
+                <span>{busy === 'replay' ? '…' : 'Replay'}</span>
+              </button>
+              <button
+                type="button"
+                className="cs-btn ghost"
+                disabled={Boolean(busy)}
+                onClick={() => run('postmortem', () => api.postmortem(incident.id))}
+              >
+                <span>{busy === 'postmortem' ? '…' : 'Report'}</span>
               </button>
               <button
                 type="button"
@@ -1027,20 +1012,19 @@ export default function Console() {
                 onClick={() => run('approve', () => api.approve(incident.id))}
               >
                 <Icon name="shield" />
-                <span>{busy === 'approve' ? 'Authorizing…' : 'Approve & Promote'}</span>
+                <span>{busy === 'approve' ? '…' : 'Approve'}</span>
               </button>
             </div>
             {!canApprove ? (
               <p className="cs-hint">
-                <Icon name="info" />
-                <span>Human Gate: Patch promotion is locked until automated test suites pass.</span>
+                Approve unlocks after a passing patch or a proposed mitigation.
               </p>
             ) : null}
             <div className="cs-reject">
               <input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Specify feedback or rationale to reject candidate patch…"
+                placeholder="Reject reason…"
               />
               <button
                 type="button"
@@ -1059,8 +1043,8 @@ export default function Console() {
       <aside className="cs-rail">
         <div className="cs-rail-head">
           <div>
-            <strong>Telemetry Ops</strong>
-            <p className="cs-mono-meta">// ACTIVE QUEUE</p>
+            <strong>Queue</strong>
+            <p className="cs-mono-meta">Live metrics</p>
           </div>
           <span className="cs-rail-chip">Online</span>
         </div>
@@ -1084,11 +1068,9 @@ export default function Console() {
         </div>
 
         <div className="cs-files">
-          <div className="cs-section-label">Analyzed Artifacts</div>
+          <div className="cs-section-label">Files</div>
           {files.length === 0 ? (
-            <p className="cs-empty">
-              Target repository files and localized modules will be indexed here after fault analysis.
-            </p>
+            <p className="cs-empty">Files appear after triage or analysis.</p>
           ) : (
             <ul>
               {files.map((f) => (
@@ -1103,7 +1085,7 @@ export default function Console() {
 
         <a className="cs-back" href="#top">
           <Icon name="arrow-left" />
-          <span>Return to Overview</span>
+          <span>Overview</span>
         </a>
       </aside>
     </LuxuryConsole>
