@@ -1,0 +1,75 @@
+:root {
+  --bg: #9b1426;
+  --bg-warm: #c41b32;
+  --ink: #f4d06a;
+  --muted: #e8c48a;
+  --line: rgba(244, 208, 106, 0.28);
+  --line-strong: rgba(244, 208, 106, 0.55);
+  --gold: #f0c14b;
+  --gold-bright: #ffe08a;
+  --gold-deep: #c9a227;
+  --gold-pale: #fff1c2;
+  --on-gold: #4e0810;
+  --red: #ff3b4e;
+  --red-deep: #6a0b16;
+  --burgundy: #3d0710;
+  --void: #160308;
+  --dark: #1c0408;
+  --dark-2: #120206;
+  --cream: #6e0e1a;
+  --white: #fff6d6;
+  --sans: 'Inter', system-ui, sans-serif;
+  --display: 'Bebas Neue', 'Oswald', sans-serif;
+  --condensed: 'Oswald', 'Bebas Neue', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--sans);
+  background: #5a0812;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--on-gold);
+}
