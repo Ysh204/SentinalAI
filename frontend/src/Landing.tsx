@@ -1,4 +1,11 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type FormEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { api } from './api'
 import {
   benefits,
@@ -13,6 +20,14 @@ import {
 } from './data'
 import type { HealthResponse } from './types'
 import { Cta, Gauge, LuxuryStage, Reveal, SectionRail, useCountUp } from './ui'
+
+type HeroRoute = {
+  width: number
+  height: number
+  startY: number
+  leftPath: string
+  rightPath: string
+}
 
 function GoldTag({ href, label }: { href: string; label: string }) {
   return (
@@ -35,6 +50,16 @@ export default function Landing() {
   const [incidentCount, setIncidentCount] = useState(3254)
   const [statsOn, setStatsOn] = useState(false)
   const statsRef = useRef<HTMLElement>(null)
+  const heroRef = useRef<HTMLElement>(null)
+  const routeAnchorRef = useRef<HTMLSpanElement>(null)
+  const heroCtaRef = useRef<HTMLAnchorElement>(null)
+  const [heroRoute, setHeroRoute] = useState<HeroRoute>({
+    width: 1200,
+    height: 760,
+    startY: 250,
+    leftPath: 'M 9 250 H 300 C 390 250 510 410 600 410',
+    rightPath: 'M 1191 250 H 900 C 810 250 690 410 600 410',
+  })
   const t = testimonials[slide]
   const step = processSteps[process]
   const plans = useMemo(
@@ -49,6 +74,83 @@ export default function Landing() {
   const stat73 = useCountUp(73, statsOn)
   const stat82 = useCountUp(82, statsOn)
   const stat91 = useCountUp(91, statsOn)
+
+  useLayoutEffect(() => {
+    const hero = heroRef.current
+    const anchor = routeAnchorRef.current
+    const cta = heroCtaRef.current
+    if (!hero || !anchor || !cta) return
+
+    const measureRoute = () => {
+      const heroRect = hero.getBoundingClientRect()
+      const anchorRect = anchor.getBoundingClientRect()
+      const ctaRect = cta.getBoundingClientRect()
+      if (
+        !heroRect.width ||
+        !heroRect.height ||
+        !ctaRect.width ||
+        !ctaRect.height
+      ) {
+        return
+      }
+
+      const round = (value: number) => Math.round(value * 10) / 10
+      const width = round(heroRect.width)
+      const height = round(heroRect.height)
+      const centerX = round(ctaRect.left + ctaRect.width / 2 - heroRect.left)
+      const ctaLeft = round(ctaRect.left - heroRect.left)
+      const ctaRight = round(ctaRect.right - heroRect.left)
+      const centerY = round(ctaRect.top + ctaRect.height / 2 - heroRect.top)
+      const startY = round(
+        Math.max(40, Math.min(anchorRect.bottom - heroRect.top + 20, centerY - 44)),
+      )
+      const availableCurveWidth = Math.max(
+        12,
+        Math.min(ctaLeft - 13, width - ctaRight - 13),
+      )
+      const curveWidth = Math.min(
+        width * 0.2,
+        Math.max(85, width * 0.115),
+        availableCurveWidth,
+      )
+      const leftTurn = round(ctaLeft - curveWidth)
+      const rightTurn = round(ctaRight + curveWidth)
+      const handle = round(curveWidth * 0.55)
+      const edge = 9
+      const leftPath = `M ${edge} ${startY} H ${leftTurn} C ${round(
+        leftTurn + handle,
+      )} ${startY}, ${round(ctaLeft - handle)} ${centerY}, ${ctaLeft} ${centerY} H ${centerX}`
+      const rightPath = `M ${round(
+        width - edge,
+      )} ${startY} H ${rightTurn} C ${round(rightTurn - handle)} ${startY}, ${round(
+        ctaRight + handle,
+      )} ${centerY}, ${ctaRight} ${centerY} H ${centerX}`
+
+      setHeroRoute((previous) => {
+        if (
+          Math.abs(previous.width - width) < 0.5 &&
+          Math.abs(previous.height - height) < 0.5 &&
+          previous.startY === startY &&
+          previous.leftPath === leftPath &&
+          previous.rightPath === rightPath
+        ) {
+          return previous
+        }
+        return { width, height, startY, leftPath, rightPath }
+      })
+    }
+
+    measureRoute()
+    const observer = new ResizeObserver(measureRoute)
+    observer.observe(hero)
+    observer.observe(anchor)
+    observer.observe(cta)
+    window.addEventListener('resize', measureRoute)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measureRoute)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -98,7 +200,7 @@ export default function Landing() {
   }
 
   return (
-    <LuxuryStage>
+    <LuxuryStage className="landing-shell">
       <header className="site-header">
         <a className="logo" href="#top">
           SENTINEL
@@ -123,20 +225,35 @@ export default function Landing() {
       </header>
 
       <main id="top">
-        <section className="hero">
+        <section className="hero" ref={heroRef}>
           <div className="hero-lines" aria-hidden="true">
-            <svg viewBox="0 0 1200 280" preserveAspectRatio="none">
+            <svg
+              viewBox={`0 0 ${heroRoute.width} ${heroRoute.height}`}
+              preserveAspectRatio="none"
+            >
               <path
-                className="draw-path"
-                d="M0 90 H340 C420 90 430 200 600 200 C770 200 780 90 860 90 H1200"
+                className="draw-path flow-left"
+                d={heroRoute.leftPath}
                 fill="none"
                 stroke="currentColor"
-                strokeDasharray="6 8"
+                strokeWidth="1.2"
+              />
+              <path
+                className="draw-path flow-right"
+                d={heroRoute.rightPath}
+                fill="none"
+                stroke="currentColor"
                 strokeWidth="1.2"
               />
             </svg>
-            <i className="node left pulse" />
-            <i className="node right pulse" />
+            <i
+              className="node left pulse"
+              style={{ top: `${heroRoute.startY}px` }}
+            />
+            <i
+              className="node right pulse"
+              style={{ top: `${heroRoute.startY}px` }}
+            />
           </div>
           <p className="live-pill">
             <i className={health ? 'ok' : 'off'} />
@@ -146,14 +263,18 @@ export default function Landing() {
           </p>
           <h1>
             <span>Build for</span>
-            <span>Incident Repair</span>
+            <span ref={routeAnchorRef}>Incident Repair</span>
             <span className="mark">Response</span>
           </h1>
           <p className="hero-copy">
             Ingest a software incident, generate an AI hypothesis, propose a
             patch, validate it in a disposable workspace, then wait for a human.
           </p>
-          <a className="cta cta-gold hero-cta" href="#console">
+          <a
+            className="cta cta-gold hero-cta"
+            href="#console"
+            ref={heroCtaRef}
+          >
             Open Console
           </a>
 
