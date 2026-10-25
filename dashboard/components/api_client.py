@@ -67,3 +67,24 @@ class SentinelAPI:
             f"/api/incidents/{incident_id}/reject",
             json={"reason": reason, "actor": "dashboard-user"},
         )  # type: ignore[return-value]
+
+    def triage(self, incident_id: str) -> dict:
+        return self._request("POST", f"/api/incidents/{incident_id}/triage")  # type: ignore[return-value]
+
+    def replay(self, incident_id: str) -> dict:
+        return self._request("POST", f"/api/incidents/{incident_id}/replay")  # type: ignore[return-value]
+
+    def postmortem(self, incident_id: str) -> dict:
+        return self._request("POST", f"/api/incidents/{incident_id}/postmortem")  # type: ignore[return-value]
+
+    def break_checkout(self, mode: str) -> dict:
+        return self._request("POST", "/api/demo/break", json={"mode": mode})  # type: ignore[return-value]
+
+    def simulate(self) -> dict:
+        return self._request("POST", "/api/demo/simulate")  # type: ignore[return-value]
+
+    def metrics(self) -> dict:
+        return self._request("GET", "/api/metrics")  # type: ignore[return-value]
+
+    def eval_run(self) -> dict:
+        return self._request("POST", "/api/eval/run")  # type: ignore[return-value]

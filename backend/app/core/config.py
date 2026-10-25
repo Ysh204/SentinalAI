@@ -40,9 +40,13 @@ class Settings:
     sample_app_path: Path
     project_root: Path
     backend_url: str
+    victim_app_url: str
     pytest_timeout: int
     ruff_timeout: int
     log_level: str
+    health_watcher_enabled: bool
+    health_check_interval: float
+    health_fail_threshold: int
 
     @property
     def gemini_configured(self) -> bool:
@@ -64,9 +68,14 @@ def load_settings() -> Settings:
         sample_app_path=PROJECT_ROOT / "sample_app",
         project_root=PROJECT_ROOT,
         backend_url=_env("BACKEND_URL", "http://127.0.0.1:8000") or "http://127.0.0.1:8000",
+        victim_app_url=_env("VICTIM_APP_URL", "http://127.0.0.1:8001") or "http://127.0.0.1:8001",
         pytest_timeout=int(_env("PYTEST_TIMEOUT", "30") or "30"),
         ruff_timeout=int(_env("RUFF_TIMEOUT", "20") or "20"),
         log_level=(_env("LOG_LEVEL", "INFO") or "INFO").upper(),
+        health_watcher_enabled=(_env("HEALTH_WATCHER_ENABLED", "true") or "true").lower()
+        in {"1", "true", "yes"},
+        health_check_interval=float(_env("HEALTH_CHECK_INTERVAL", "10") or "10"),
+        health_fail_threshold=int(_env("HEALTH_FAIL_THRESHOLD", "3") or "3"),
     )
 
 

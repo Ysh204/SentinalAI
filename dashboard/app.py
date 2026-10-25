@@ -78,6 +78,28 @@ def main() -> None:
         st.session_state.backend_url = st.text_input("Backend URL", st.session_state.backend_url)
         if st.button("Refresh"):
             st.rerun()
+        st.subheader("Demo shop")
+        if st.button("Simulate incident"):
+            try:
+                created = api().simulate()
+                st.session_state.selected_id = created["id"]
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
+        if st.button("Break checkout (outage)"):
+            try:
+                created = api().break_checkout("payments_outage")
+                st.session_state.selected_id = created["id"]
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
+        if st.button("Break checkout (code bug)"):
+            try:
+                created = api().break_checkout("code_bug")
+                st.session_state.selected_id = created["id"]
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
         try:
             health = api().health()
             db_state = "ready" if health.get("database_ready") else "missing"
@@ -160,6 +182,25 @@ def main() -> None:
         with st.expander("Stack trace"):
             st.code(incident.get("stack_trace") or "(empty)")
 
+        verdict = incident.get("verdict")
+        if verdict:
+            st.markdown(
+                f"**Triage:** `{verdict.get('category')}` · track `{verdict.get('recommended_track')}` · "
+                f"confidence {verdict.get('confidence')}"
+            )
+            for line in verdict.get("evidence") or []:
+                st.caption(f"• {line}")
+        replay = incident.get("replay")
+        if replay:
+            before = "OK" if replay.get("before_ok") else "FAIL"
+            after = "OK" if replay.get("after_ok") else "FAIL"
+            st.markdown(f"**Replay:** before {before} → after {after}")
+        if incident.get("mitigation"):
+            mit = incident["mitigation"]
+            st.caption(
+                f"Simulated mitigation `{mit.get('action')}` · {mit.get('status')} · {mit.get('detail')}"
+            )
+
         actions = st.columns(4)
         if actions[0].button("Analyze"):
             try:
@@ -181,6 +222,25 @@ def main() -> None:
                 show_error(exc)
         if actions[3].button("Reload"):
             st.rerun()
+        extra = st.columns(4)
+        if extra[0].button("Triage"):
+            try:
+                api().triage(selected_id)
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
+        if extra[1].button("Replay"):
+            try:
+                api().replay(selected_id)
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
+        if extra[2].button("Post-mortem"):
+            try:
+                api().postmortem(selected_id)
+                st.rerun()
+            except Exception as exc:
+                show_error(exc)
 
         analysis = incident.get("root_cause_analysis")
         st.markdown("#### Root-cause analysis")

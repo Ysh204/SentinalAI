@@ -1,4 +1,4 @@
-import type { HealthResponse, Incident, IncidentCreate } from './types'
+import type { HealthResponse, Incident, IncidentCreate, MetricsResponse } from './types'
 
 const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
 
@@ -83,4 +83,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason, actor: 'frontend-user' }),
     }),
+  triage: (id: string) => request<Incident>(`/api/incidents/${id}/triage`, { method: 'POST' }),
+  replay: (id: string) => request<Incident>(`/api/incidents/${id}/replay`, { method: 'POST' }),
+  mitigate: (id: string) => request<Incident>(`/api/incidents/${id}/mitigate`, { method: 'POST' }),
+  postmortem: (id: string) =>
+    request<Incident>(`/api/incidents/${id}/postmortem`, { method: 'POST' }),
+  ingestAlert: (payload: Record<string, unknown>) =>
+    request<Incident>('/api/alerts', { method: 'POST', body: JSON.stringify(payload) }),
+  breakCheckout: (mode: string) =>
+    request<Incident>('/api/demo/break', { method: 'POST', body: JSON.stringify({ mode }) }),
+  simulateIncident: () => request<Incident>('/api/demo/simulate', { method: 'POST' }),
+  metrics: () => request<MetricsResponse>('/api/metrics'),
 }
