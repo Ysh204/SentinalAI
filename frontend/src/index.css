@@ -18,6 +18,8 @@
   --dark-2: #120206;
   --cream: #6e0e1a;
   --white: #fff6d6;
+  --glass: linear-gradient(180deg, rgba(148, 32, 48, 0.42), rgba(62, 10, 18, 0.38));
+  --glass-deep: linear-gradient(180deg, rgba(118, 24, 38, 0.5), rgba(48, 8, 14, 0.44));
   --sans: 'Inter', system-ui, sans-serif;
   --display: 'Bebas Neue', 'Oswald', sans-serif;
   --condensed: 'Oswald', 'Bebas Neue', sans-serif;

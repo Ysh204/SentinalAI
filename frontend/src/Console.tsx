@@ -127,12 +127,12 @@ export default function Console() {
               <h1>Analyze, patch, validate — then wait for a human.</h1>
             </div>
             <div className={`health-card ${health ? 'up' : 'down'}`}>
-              <span>{health ? 'Backend live' : 'Backend unreachable'}</span>
+              <span>{health ? 'Backend live' : 'Preview mode'}</span>
               <strong>{health?.app ?? 'SentinelAI'}</strong>
               <small>
                 {health
                   ? `provider ${health.ai_provider} · db ${health.database_ready ? 'ready' : 'missing'} · v${health.version}`
-                  : 'Start: uvicorn backend.app.main:app --reload'}
+                  : 'API offline. You can still explore the console layout.'}
               </small>
             </div>
           </div>
@@ -156,7 +156,14 @@ export default function Console() {
             </article>
           </div>
 
-          {error ? <p className="banner-error">{error}</p> : null}
+          {!health ? (
+            <p className="banner-offline">
+              Backend is not running yet. Start uvicorn on port 8000, then refresh to submit
+              incidents.
+            </p>
+          ) : error ? (
+            <p className="banner-error">{error}</p>
+          ) : null}
 
           <div className="console-grid">
             <section className="panel">
@@ -202,7 +209,11 @@ export default function Console() {
                   >
                     Load sample
                   </button>
-                  <button className="cta cta-dark" type="submit" disabled={Boolean(busy)}>
+                  <button
+                    className="cta cta-gold"
+                    type="submit"
+                    disabled={Boolean(busy) || !health}
+                  >
                     {busy === 'create' ? 'Submitting…' : 'Submit incident'}
                   </button>
                 </div>
@@ -229,7 +240,14 @@ export default function Console() {
 
             <section className="panel detail">
               {!incident ? (
-                <p className="empty">Select an incident to inspect analysis, patch, and validation.</p>
+                <div className="empty-detail">
+                  <p className="kicker">Workspace</p>
+                  <h2>No incident selected</h2>
+                  <p className="empty">
+                    Submit the sample on the left, then Analyze → Generate patch → Validate.
+                    Approval stays locked until tests pass.
+                  </p>
+                </div>
               ) : (
                 <>
                   <div className="detail-head">

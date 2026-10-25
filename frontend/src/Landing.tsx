@@ -153,7 +153,7 @@ export default function Landing() {
             Ingest a software incident, generate an AI hypothesis, propose a
             patch, validate it in a disposable workspace, then wait for a human.
           </p>
-          <a className="cta cta-ghost hero-cta" href="#console">
+          <a className="cta cta-gold hero-cta" href="#console">
             Open Console
           </a>
 

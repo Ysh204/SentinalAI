@@ -242,8 +242,10 @@
 }
 
 .cta-dark {
-  background: var(--void);
+  background: var(--glass-deep);
   color: var(--gold);
+  border-color: var(--line-strong);
+  backdrop-filter: blur(10px);
 }
 
 .cta-gold {
@@ -299,12 +301,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--void);
+  background: rgba(148, 32, 48, 0.28);
   color: var(--gold);
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  backdrop-filter: blur(8px);
 }
 
 .gold-tag {
@@ -549,10 +554,12 @@
 }
 
 .dash {
-  background: var(--dark);
-  color: var(--white);
+  background: var(--glass);
+  color: var(--gold-pale);
   padding: 16px;
   text-align: left;
+  border: 1px solid rgba(244, 208, 106, 0.22);
+  backdrop-filter: blur(8px);
 }
 
 .dash-top {
@@ -681,9 +688,9 @@
   z-index: 1;
   width: 44px;
   height: 44px;
-  background: var(--void);
+  background: var(--glass-deep);
   color: var(--gold);
-  border: 0;
+  border: 1px solid var(--line);
   font-size: 20px;
 }
 
@@ -764,7 +771,7 @@
 .features .frame {
   border: 1px solid var(--line);
   padding-bottom: 40px;
-  background: rgba(18, 2, 6, 0.38);
+  background: rgba(148, 32, 48, 0.22);
   backdrop-filter: blur(10px);
 }
 
@@ -976,7 +983,7 @@
 .benefit-cards article {
   border: 1px solid var(--line);
   padding: 24px;
-  background: rgba(18, 2, 6, 0.5);
+  background: var(--glass);
   backdrop-filter: blur(8px);
 }
 
@@ -1033,8 +1040,9 @@
   height: 40px;
   display: grid;
   place-items: center;
-  background: var(--void);
+  background: var(--glass-deep);
   color: var(--gold);
+  border: 1px solid var(--line);
 }
 
 /* Testimonials */
@@ -1163,7 +1171,7 @@
 }
 
 .tabs button.active {
-  background: var(--void);
+  background: rgba(240, 193, 75, 0.16);
   color: var(--gold);
 }
 
@@ -1244,7 +1252,7 @@
 }
 
 .toggle button.on {
-  background: var(--void);
+  background: rgba(240, 193, 75, 0.16);
   color: var(--gold);
 }
 
@@ -1267,14 +1275,14 @@
 .plans article {
   border: 1px solid var(--line);
   padding: 28px;
-  background: rgba(18, 2, 6, 0.5);
+  background: var(--glass);
   backdrop-filter: blur(8px);
 }
 
 .plans article.featured {
-  background: var(--void);
-  color: var(--white);
-  border-color: var(--ink);
+  background: var(--glass-deep);
+  color: var(--gold-pale);
+  border-color: var(--gold);
 }
 
 .plans article.featured .cta-gold {
@@ -1490,7 +1498,7 @@
 
 .field button {
   border: 0;
-  background: var(--void);
+  background: var(--glass-deep);
   color: var(--gold);
   width: 44px;
 }
@@ -1653,8 +1661,8 @@
 .health-card {
   border: 1px solid var(--line);
   padding: 18px 20px;
-  background: rgba(18, 2, 6, 0.62);
-  backdrop-filter: blur(10px);
+  background: var(--glass);
+  backdrop-filter: blur(12px);
 }
 
 .health-card.up {
@@ -1662,7 +1670,7 @@
 }
 
 .health-card.down {
-  border-color: var(--red);
+  border-color: var(--line-strong);
 }
 
 .health-card span {
@@ -1696,15 +1704,18 @@
 }
 
 .metrics article {
-  background: var(--void);
-  color: var(--gold);
+  background: var(--glass);
+  color: var(--gold-pale);
   padding: 16px 18px;
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
 }
 
 .metrics small {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
+  color: var(--muted);
 }
 
 .metrics b {
@@ -1712,12 +1723,22 @@
   font-family: var(--display);
   font-size: 42px;
   margin-top: 6px;
+  color: var(--gold);
 }
 
-.banner-error {
-  background: var(--red);
-  color: var(--white);
+.banner-error,
+.banner-offline {
   padding: 12px 16px;
+  margin: 0 0 16px;
+  border: 1px solid rgba(255, 90, 100, 0.4);
+  background: rgba(255, 70, 82, 0.16);
+  color: var(--gold-pale);
+}
+
+.banner-offline {
+  border-color: var(--line-strong);
+  background: rgba(240, 193, 75, 0.12);
+  color: var(--gold-pale);
 }
 
 .console-grid {
@@ -1729,8 +1750,8 @@
 
 .panel {
   border: 1px solid var(--line);
-  background: rgba(18, 2, 6, 0.62);
-  backdrop-filter: blur(12px);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
   padding: 22px;
 }
 
@@ -1760,8 +1781,8 @@
   display: block;
   width: 100%;
   margin-top: 6px;
-  border: 1px solid var(--line-strong);
-  background: rgba(8, 1, 3, 0.7);
+  border: 1px solid var(--line);
+  background: rgba(148, 32, 48, 0.28);
   padding: 10px 12px;
   color: var(--gold-pale);
   text-transform: none;
@@ -1786,7 +1807,7 @@
   width: 100%;
   text-align: left;
   border: 1px solid var(--line);
-  background: rgba(8, 1, 3, 0.55);
+  background: rgba(148, 32, 48, 0.22);
   padding: 12px;
   margin-bottom: 8px;
   display: grid;
@@ -1828,7 +1849,7 @@
 }
 
 .pill.busy {
-  background: var(--void);
+  background: rgba(240, 193, 75, 0.18);
   color: var(--gold);
   animation: pulse 1.4s ease infinite;
 }
@@ -1863,9 +1884,9 @@
 }
 
 .pipeline li.done {
-  background: var(--void);
-  color: var(--gold);
-  border-color: var(--ink);
+  background: rgba(240, 193, 75, 0.16);
+  color: var(--gold-pale);
+  border-color: var(--gold);
 }
 
 .pipeline li.bad {
@@ -1895,11 +1916,12 @@
 .detail pre,
 .diff {
   overflow: auto;
-  background: var(--dark);
+  background: rgba(72, 12, 20, 0.45);
   color: var(--gold-pale);
   padding: 14px;
   font-size: 12px;
   line-height: 1.45;
+  border: 1px solid var(--line);
 }
 
 .detail details {
@@ -1915,6 +1937,12 @@
 
 .empty {
   color: var(--muted);
+}
+
+.empty-detail h2 {
+  font-family: var(--condensed);
+  font-size: 28px;
+  margin: 8px 0 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {
