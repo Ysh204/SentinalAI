@@ -1700,6 +1700,7 @@
   --bl-font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --bl-font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 
+<<<<<<< Updated upstream
   background: var(--bl-bg);
   min-height: 100vh;
   position: relative;
@@ -1723,6 +1724,39 @@
     radial-gradient(ellipse 70% 60% at 50% 100%, rgba(245, 220, 226, 0.45), transparent 60%),
     #fcf9f6;
   max-width: 1720px;
+=======
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  min-width: 100vw;
+  min-height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 65% 45% at 50% -5%, rgba(255, 120, 160, 0.42), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 92% 10%, rgba(255, 196, 70, 0.28), transparent 50%),
+    radial-gradient(ellipse 55% 45% at 8% 22%, rgba(255, 90, 130, 0.32), transparent 50%),
+    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(255, 170, 90, 0.28), transparent 60%),
+    #fff3ec;
+  color: var(--bl-text-body);
+}
+
+.console-page .stage {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 250px;
+  gap: 14px;
+  padding: 14px 18px;
+  font-family: var(--bl-font-sans);
+  background: transparent;
+  max-width: 1800px;
+>>>>>>> Stashed changes
   margin: 0 auto;
   box-sizing: border-box;
 }
@@ -1796,15 +1830,24 @@
   border-radius: 20px;
   box-shadow: 0 16px 36px -12px rgba(142, 43, 62, 0.05), 0 2px 6px rgba(142, 43, 62, 0.02);
   backdrop-filter: blur(24px) saturate(180%);
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .cs-sidebar,
 .cs-rail {
   display: flex;
   flex-direction: column;
+<<<<<<< Updated upstream
   padding: 22px 18px;
   min-height: calc(100vh - 32px);
   box-sizing: border-box;
+=======
+  padding: 16px 14px;
+  overflow: hidden;
+>>>>>>> Stashed changes
 }
 
 /* Brand (like /bloom) */
@@ -2052,7 +2095,13 @@
 .cs-center {
   display: flex;
   flex-direction: column;
+<<<<<<< Updated upstream
   min-height: calc(100vh - 32px);
+=======
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+>>>>>>> Stashed changes
   overflow: hidden;
   padding: 0;
   box-sizing: border-box;
@@ -2062,8 +2111,13 @@
   display: flex;
   justify-content: space-between;
   gap: 16px;
+<<<<<<< Updated upstream
   align-items: flex-start;
   padding: 24px 28px 18px;
+=======
+  align-items: center;
+  padding: 16px 22px 14px;
+>>>>>>> Stashed changes
   border-bottom: 1px solid var(--bl-border);
 }
 
@@ -2144,7 +2198,7 @@
 }
 
 .cs-banner {
-  margin: 12px 28px 0;
+  margin: 12px 22px 0;
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 12.5px;
@@ -2170,12 +2224,68 @@
 .cs-scroll {
   flex: 1;
   overflow-y: auto;
+<<<<<<< Updated upstream
   padding: 18px 28px 24px;
   display: grid;
   gap: 16px;
   align-content: start;
 }
 
+=======
+  min-height: 0;
+  padding: 14px 22px 18px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.cs-scroll::-webkit-scrollbar,
+.cs-threads::-webkit-scrollbar,
+.cs-files::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.cs-scroll::-webkit-scrollbar-track,
+.cs-threads::-webkit-scrollbar-track,
+.cs-files::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cs-scroll::-webkit-scrollbar-thumb,
+.cs-threads::-webkit-scrollbar-thumb,
+.cs-files::-webkit-scrollbar-thumb {
+  background: rgba(142, 43, 62, 0.16);
+  border-radius: 999px;
+}
+
+.cs-scroll::-webkit-scrollbar-thumb:hover,
+.cs-threads::-webkit-scrollbar-thumb:hover,
+.cs-files::-webkit-scrollbar-thumb:hover {
+  background: rgba(142, 43, 62, 0.35);
+}
+
+.cs-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cs-span-2 {
+  grid-column: 1 / -1;
+}
+
+.cs-card-heading {
+  margin: 0 0 6px;
+  font-family: var(--bl-font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: inherit;
+  text-transform: capitalize;
+}
+
+>>>>>>> Stashed changes
 .cs-compose-wrap {
   display: grid;
   gap: 16px;
@@ -2186,7 +2296,7 @@
   background: #ffffff;
   border: 1px solid var(--bl-wine-border);
   border-radius: 16px;
-  padding: 18px 20px;
+  padding: 18px 22px;
   box-shadow: 0 6px 20px -4px rgba(142, 43, 62, 0.06);
   display: grid;
   gap: 12px;
@@ -2210,6 +2320,7 @@
   border: 1px solid rgba(142, 43, 62, 0.16);
   border-radius: 10px;
   padding: 6px 6px 6px 14px;
+  min-height: 44px;
 }
 
 .cs-prompt-text {
@@ -2223,14 +2334,14 @@
 
 .cs-prompt-copy-btn {
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--bl-wine);
   color: #ffffff;
   font-family: var(--bl-font-mono);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 7px 14px;
+  padding: 8px 16px;
   cursor: pointer;
   transition: all 0.15s ease;
   flex-shrink: 0;
@@ -2269,7 +2380,7 @@
 .cs-form-card {
   background: #ffffff;
   border-radius: 18px;
-  padding: 24px;
+  padding: 22px;
   border: 1px solid var(--bl-border);
   box-shadow: 0 4px 16px -2px rgba(142, 43, 62, 0.04);
   display: grid;
@@ -2321,10 +2432,17 @@
   border-radius: 10px;
   padding: 10px 13px;
   color: var(--bl-text-title);
-  font-size: 13.5px;
+  font-size: 13px;
   font-family: inherit;
   transition: all 0.16s ease;
   box-sizing: border-box;
+}
+
+.cs-form-card textarea {
+  font-family: var(--bl-font-mono) !important;
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+  resize: vertical;
 }
 
 .cs-form-card input::placeholder,
@@ -2342,7 +2460,14 @@
   box-shadow: 0 0 0 3px rgba(142, 43, 62, 0.14);
 }
 
-.cs-form-actions,
+.cs-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
 .cs-tools {
   display: flex;
   flex-wrap: wrap;
@@ -2850,7 +2975,7 @@
   background: #ffffff;
   border: 1px solid var(--bl-border);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   box-shadow: 0 2px 8px rgba(142, 43, 62, 0.03);
   transition: all 0.16s ease;
 }
@@ -2863,7 +2988,7 @@
 .cs-stats small {
   color: var(--bl-wine);
   font-family: var(--bl-font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
@@ -2873,10 +2998,15 @@
 .cs-stats b {
   display: block;
   font-family: var(--bl-font-serif);
+<<<<<<< Updated upstream
   font-size: 28px;
+=======
+  font-size: 24px;
+>>>>>>> Stashed changes
   letter-spacing: -0.02em;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--bl-text-title);
+  line-height: 1.1;
 }
 
 .cs-files {
@@ -2928,7 +3058,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: auto;
   padding: 10px 14px;
   border-radius: 10px;
   border: 1px solid var(--bl-border);
