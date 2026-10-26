@@ -538,11 +538,29 @@
 }
 
 .draw-path.flow-left {
-  animation: flowTowardsCta 0.42s linear infinite;
+  animation:
+    lineSuperfastRush 0.55s cubic-bezier(0.12, 0.9, 0.22, 1) 0s 1 normal forwards,
+    flowTowardsCta 0.72s linear 0.55s infinite;
 }
 
 .draw-path.flow-right {
-  animation: flowTowardsCta 0.42s linear infinite;
+  animation:
+    lineSuperfastRush 0.55s cubic-bezier(0.12, 0.9, 0.22, 1) 0s 1 normal forwards,
+    flowTowardsCta 0.72s linear 0.55s infinite;
+}
+
+@keyframes lineSuperfastRush {
+  0% {
+    stroke-dashoffset: 700px;
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0px;
+    opacity: 1;
+  }
 }
 
 @keyframes flowTowardsCta {
