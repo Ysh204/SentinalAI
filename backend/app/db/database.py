@@ -38,14 +38,34 @@ class Database:
                         validation_results TEXT,
                         approval TEXT,
                         history TEXT NOT NULL DEFAULT '[]',
+                        details TEXT NOT NULL DEFAULT '{}',
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self._ensure_column(conn, "incidents", "details", "TEXT NOT NULL DEFAULT '{}'")
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS audit_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        incident_id TEXT,
+                        actor TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        detail TEXT NOT NULL DEFAULT ''
                     )
                     """
                 )
                 conn.commit()
             finally:
                 conn.close()
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, spec: str) -> None:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        names = {row["name"] for row in rows}
+        if column not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {spec}")
 
     @property
     def lock(self) -> threading.Lock:

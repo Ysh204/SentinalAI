@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
+from typing import Any
 
 from backend.app.core.exceptions import SentinelAIError
-from backend.app.models.schemas import IncidentPublic
+from backend.app.models.schemas import IncidentPublic, Verdict
 from backend.app.services.ai_provider import (
     ANALYSIS_DISCLAIMER,
     AIProvider,
     AnalysisDraft,
     PatchDraft,
 )
+from backend.app.services.llm import parse_json_object, strip_fences
+from backend.app.services.triage_rules import apply_confidence_gate, classify
 
 LOGGER = logging.getLogger("sentinelai.gemini")
 
@@ -117,6 +118,38 @@ class GeminiProvider(AIProvider):
             notes=str(data.get("notes") or "") or ANALYSIS_DISCLAIMER,
         )
 
+    def triage_incident(self, incident: IncidentPublic, context: dict[str, Any]) -> Verdict:
+        prompt = (
+            "Classify this software incident. Return JSON only with keys: "
+            "category, confidence, evidence, recommended_track, escalate_to_human, recommended_action.\n"
+            "category must be one of: code_bug, config, dependency_outage, bad_deploy, resource, unknown.\n"
+            "recommended_track must be one of: code_fix, mitigation, escalate.\n"
+            "confidence is a float 0-1. If confidence < 0.55 set escalate_to_human true "
+            "and recommended_track escalate.\n"
+            "Do not guess. This is a hypothesis.\n"
+            f"Incident: {incident.title}\nError: {incident.error_message}\n"
+            f"Stack: {incident.stack_trace}\nContext: {context}\n"
+        )
+        try:
+            text = self._generate(prompt)
+            data = parse_json_object(text)
+            verdict = Verdict.model_validate({**data, "provider": self.name})
+            return apply_confidence_gate(verdict)
+        except Exception:
+            LOGGER.exception("Gemini triage failed; using recorded demo rules")
+            return classify(incident, context, provider=f"{self.name}-fallback")
+
+    def generate_postmortem(self, incident: IncidentPublic) -> str:
+        timeline = "; ".join(f"{item.event}: {item.detail}" for item in incident.history)
+        prompt = (
+            "Write a short incident post-mortem as JSON with keys summary, root_cause, action_items.\n"
+            f"Title: {incident.title}\nTimeline: {timeline}\n"
+            f"Verdict: {incident.verdict.model_dump() if incident.verdict else {}}\n"
+        )
+        text = self._generate(prompt)
+        data = parse_json_object(text)
+        return str(data.get("summary") or text)
+
     def _generate(self, prompt: str) -> str:
         client = self._client_or_raise()
         try:
@@ -153,26 +186,8 @@ def _normalize_confidence(value: object) -> str:
 
 
 def _strip_fences(text: str) -> str:
-    stripped = text.strip()
-    match = re.search(r"```(?:json|diff)?\s*(.*?)```", stripped, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return stripped
+    return strip_fences(text)
 
 
 def _parse_json_object(text: str) -> dict:
-    candidate = _strip_fences(text)
-    try:
-        parsed = json.loads(candidate)
-        if isinstance(parsed, dict):
-            return parsed
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", candidate, re.DOTALL)
-        if match:
-            try:
-                parsed = json.loads(match.group(0))
-                if isinstance(parsed, dict):
-                    return parsed
-            except json.JSONDecodeError:
-                pass
-    return {}
+    return parse_json_object(text)

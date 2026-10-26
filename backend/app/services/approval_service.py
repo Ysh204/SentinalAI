@@ -11,13 +11,20 @@ from backend.app.models.schemas import ApprovalRecord, IncidentPublic
 
 class ApprovalService:
     def approve(self, incident: IncidentPublic, actor: str, note: str | None = None) -> ApprovalRecord:
+        if incident.status == IncidentStatus.MITIGATION_PROPOSED:
+            return ApprovalRecord(
+                decision="approved",
+                reason=note or "Human approved simulated mitigation.",
+                decided_at=datetime.now(timezone.utc),
+                actor=actor or "human",
+            )
         if not incident.proposed_patch:
             raise SentinelAIError(
                 "Approval requires a proposed patch.",
                 code="missing_patch",
                 status_code=409,
             )
-        if incident.status != IncidentStatus.VALIDATED:
+        if incident.status not in {IncidentStatus.VALIDATED, IncidentStatus.PATCH_VERIFIED}:
             raise SentinelAIError(
                 "Approval is allowed only after validation has completed successfully.",
                 code="approval_blocked",

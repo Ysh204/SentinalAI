@@ -1,25 +1,25 @@
 :root {
-  --bg: #9b1426;
-  --bg-warm: #c41b32;
-  --ink: #f4d06a;
-  --muted: #e8c48a;
-  --line: rgba(244, 208, 106, 0.28);
-  --line-strong: rgba(244, 208, 106, 0.55);
-  --gold: #f0c14b;
-  --gold-bright: #ffe08a;
-  --gold-deep: #c9a227;
-  --gold-pale: #fff1c2;
+  --bg: #d41432;
+  --bg-warm: #f01e3c;
+  --ink: #ffe27a;
+  --muted: #ffd27a;
+  --line: rgba(255, 226, 122, 0.42);
+  --line-strong: rgba(255, 226, 122, 0.72);
+  --gold: #ffd24a;
+  --gold-bright: #ffe66d;
+  --gold-deep: #e0a81a;
+  --gold-pale: #fff4c4;
   --on-gold: #4e0810;
-  --red: #ff3b4e;
-  --red-deep: #6a0b16;
-  --burgundy: #3d0710;
-  --void: #160308;
-  --dark: #1c0408;
-  --dark-2: #120206;
-  --cream: #6e0e1a;
-  --white: #fff6d6;
-  --glass: linear-gradient(180deg, rgba(148, 32, 48, 0.42), rgba(62, 10, 18, 0.38));
-  --glass-deep: linear-gradient(180deg, rgba(118, 24, 38, 0.5), rgba(48, 8, 14, 0.44));
+  --red: #ff2a45;
+  --red-deep: #8c0d1c;
+  --burgundy: #4a0812;
+  --void: #1a0308;
+  --dark: #24050c;
+  --dark-2: #140206;
+  --cream: #8a101e;
+  --white: #fff8dc;
+  --glass: linear-gradient(180deg, rgba(196, 28, 52, 0.5), rgba(72, 10, 20, 0.42));
+  --glass-deep: linear-gradient(180deg, rgba(168, 22, 42, 0.58), rgba(56, 8, 16, 0.5));
   --sans: 'Inter', system-ui, sans-serif;
   --display: 'Bebas Neue', 'Oswald', sans-serif;
   --condensed: 'Oswald', 'Bebas Neue', sans-serif;
@@ -33,6 +33,7 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 17px;
 }
 
 html,
@@ -45,7 +46,7 @@ body,
 
 body {
   font-family: var(--sans);
-  background: #5a0812;
+  background: #8a0e1c;
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }

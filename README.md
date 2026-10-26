@@ -1,47 +1,45 @@
 # SentinelAI
 
-AI-assisted software incident response and code repair. Built by **Team TriNova**.
+AI-assisted incident response for **web services**. Built by **Team TriNova**.
 
-This repository is the **initial runnable MVP**: ingest an incident, produce an AI hypothesis, generate a proposed patch, validate that patch in a disposable workspace with real tests, then wait for a human to approve or reject. It does **not** merge, push, deploy, or change the original repository.
+SentinelAI is a **web app** (FastAPI backend + browser dashboard). It sits beside the apps it watches. It is not a desktop agent, and it does not silently rewrite your repo.
 
-This local prototype is **not production-hardened**.
+This local prototype is a **demo environment**. Mitigation adapters talk to a fake shop control API, not Kubernetes or LaunchDarkly. Say that openly in any pitch.
 
-## Architecture
+## Two processes
+
+| Process | What it is | Default port |
+| --- | --- | --- |
+| **SentinelAI** | Ingestion, triage, patch sandbox, approval, timeline | `8000` |
+| **Demo shop** (`victim_app`) | Deliberately breakable checkout | `8001` |
+
+Errors in the shop become incidents in SentinelAI through:
+
+1. **SDK middleware** in the shop (catches exceptions and POSTs `/api/alerts`)
+2. **Health checks** (SentinelAI pings shop `/health`)
+3. **Logs / context** pulled at triage time
+4. **Webhooks** (same `POST /api/alerts` — Sentry/Datadog would use this)
+
+Duplicate alerts with the same fingerprint are grouped into one incident.
 
 ```
-incident  →  analyzer  →  patcher  →  validator  →  human approval
-                │             │            │
-            AI provider   unified diff   pytest/ruff in a temp copy
+Shop / webhook / health  →  POST /api/alerts  →  incident store
+                                              →  triage verdict
+                         Track 1 mitigation (human approves simulated action)
+                         Track 2 code fix (patch → tests → replay → human approves)
+                                              →  timeline + post-mortem
 ```
-
-- **FastAPI** serves the workflow (`backend/app`).
-- **SQLite** stores incident state (`data/sentinelai.db` by default).
-- **Streamlit** is a thin dashboard over the HTTP API.
-- **AI providers** sit behind `AIProvider`. `mock` works offline; `gemini` is optional.
-- **Orchestrator** owns state transitions. A later LangGraph graph can call the same services without rewriting routes.
-- **GitPython** initializes a local baseline in the disposable workspace only. No remotes, commits of patches, or pushes.
-
-### Workflow states
-
-`RECEIVED → ANALYZING → ANALYZED → PATCH_GENERATED → VALIDATING → VALIDATED → APPROVED`
-
-Failure and human-stop states: `FAILED`, `VALIDATION_FAILED`, `REJECTED`.
 
 ## Requirements
 
 - Python 3.11+
-- Windows PowerShell, macOS, or Linux
-- Optional: a Google Gemini API key if you switch `AI_PROVIDER=gemini`
+- Node 20+ only if you use the Vite console (`frontend/`)
+- Optional: `GEMINI_API_KEY` if `AI_PROVIDER=gemini`
 
 ## Setup
 
 ```powershell
 python -m venv .venv
-```
-
-Windows PowerShell:
-
-```powershell
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
@@ -50,59 +48,134 @@ Copy-Item .env.example .env
 macOS / Linux:
 
 ```bash
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Leave `AI_PROVIDER=mock` for the offline demo. Do not put real keys in git.
+Leave `AI_PROVIDER=mock` for an offline demo.
 
-## Run the backend
+## Run (three terminals)
 
-From the project root:
+From the **project root**, with the venv activated.
+
+**1. SentinelAI backend**
 
 ```powershell
-uvicorn backend.app.main:app --reload
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
-Health check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+Health: http://127.0.0.1:8000/health  
+API docs: http://127.0.0.1:8000/docs
 
-API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+**2. Demo shop (the app you break)**
 
-## Run the dashboard
+```powershell
+uvicorn victim_app.main:app --reload --port 8001
+```
 
-In a second terminal, with the same virtualenv activated:
+Shop health: http://127.0.0.1:8001/health
+
+**3. Dashboard** (pick one)
+
+Vite console:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Streamlit:
 
 ```powershell
 streamlit run dashboard/app.py
 ```
 
-The dashboard calls `BACKEND_URL` (default `http://127.0.0.1:8000`). It never receives API keys.
+If the backend is down, the Vite console falls back to an offline simulation. Start port `8000` to talk to the real API.
 
-## Demo walkthrough
+## How to test it (manual demo, ~3 minutes)
 
-1. Start backend and dashboard as above.
-2. In the dashboard, submit the prefilled sample incident (`sample_app`, `add()` returning `-1`).
-3. Click **Analyze**. You should see an AI-generated **hypothesis** (not a verified fact) pointing at `buggy_app.py` / `add`.
-4. Click **Generate patch**. A unified diff should change subtraction to addition.
-5. Click **Validate**. SentinelAI copies `sample_app` into a temp workspace, applies the patch there, runs pytest (and ruff if installed), then deletes the workspace.
-6. After status `VALIDATED`, **Approve** becomes available. **Approve** records the decision only.
-7. Confirm `sample_app/buggy_app.py` still contains the original bug.
+1. Start backend + shop + dashboard as above.
+2. In the console, click **Break checkout (outage)**. An incident should appear with verdict `dependency_outage` and a **simulated** fallback proposal.
+3. Click **Approve**. Error rate on the shop should drop (fallback, no code change).
+4. Click **Break checkout (code bug)**. Verdict should be `code_bug`.
+5. **Synthesize Patch** → **Run Test Suite** → **Replay request**. You should see before fail / after pass. Original `victim_app/shop.py` stays buggy until a human later chooses to apply a patch outside this tool.
+6. **Generate post-mortem**.
+7. Optional: `POST http://127.0.0.1:8000/api/eval/run` — expect about **8–10 / 10** classified correctly on the recorded demo set.
 
-To try rejection instead, enter a reason and click **Reject** after analysis (or later). Approval stays disabled if validation failed.
+### Inject failures yourself
 
-## Tests and lint
+```powershell
+curl -X POST http://127.0.0.1:8001/control/inject -H "Content-Type: application/json" -d "{\"mode\":\"payments_outage\"}"
+curl -X POST http://127.0.0.1:8001/checkout
+```
+
+Modes: `code_bug`, `expired_key`, `payments_outage`, `bad_deploy`, `memory_leak`, `crash`, `none`.
+
+Or from SentinelAI:
+
+```powershell
+curl -X POST http://127.0.0.1:8000/api/demo/break -H "Content-Type: application/json" -d "{\"mode\":\"code_bug\"}"
+curl -X POST http://127.0.0.1:8000/api/demo/simulate
+```
+
+### Advanced: old sample_app loop
+
+Manual form still works for `sample_app` (`add()` returns `-1`):
+
+Analyze → Generate patch → Validate → Approve. `sample_app/buggy_app.py` is never modified by approval.
+
+## Automated tests
 
 ```powershell
 pytest
-ruff check .
+ruff check backend victim_app
 ```
 
-Tests use temporary directories and the mock provider. They do not need internet access or an API key.
+Tests use a temp SQLite file, `AI_PROVIDER=mock`, and `victim_app_url=inline` (no shop server required). They do not need internet or an API key.
+
+Useful subsets:
+
+```powershell
+pytest backend/tests/test_ops.py -q
+pytest backend/tests/test_workflow.py -q
+```
+
+## HTTP surface
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Liveness |
+| GET | `/api/events` | SSE live incident feed |
+| GET | `/api/metrics` | Counts, categories, time-to-resolution |
+| POST | `/api/alerts` | Webhook / SDK ingest (auto-triage) |
+| POST | `/api/demo/break` | Inject a shop failure and open an incident |
+| POST | `/api/demo/simulate` | Synthetic payments-outage incident |
+| POST | `/api/eval/run` | Score the 10 known scenarios |
+| POST | `/api/incidents` | Manual ingest (no auto-triage) |
+| GET | `/api/incidents` | List |
+| GET | `/api/incidents/{id}` | Fetch |
+| POST | `/api/incidents/{id}/triage` | Classify + propose track |
+| POST | `/api/incidents/{id}/analyze` | Code-level hypothesis |
+| POST | `/api/incidents/{id}/generate-patch` | Unified diff in memory only |
+| POST | `/api/incidents/{id}/validate` | pytest/ruff in a disposable copy |
+| POST | `/api/incidents/{id}/replay` | Captured request before/after in sandbox |
+| POST | `/api/incidents/{id}/mitigate` | Propose simulated adapter |
+| POST | `/api/incidents/{id}/approve` | Human gate (patch record **or** simulated mitigate) |
+| POST | `/api/incidents/{id}/reject` | Human reject |
+| POST | `/api/incidents/{id}/postmortem` | Timeline summary |
+
+## Safety (built in)
+
+- Sandbox copies are deleted after validate/replay. The original tree is not written.
+- Approval does **not** merge, push, or deploy.
+- Captured checkout bodies redact cards, emails, and secret-like keys.
+- Every transition is stored on the incident timeline and in `audit_log`.
+- Mitigation is **simulated** against the demo shop control API.
 
 ## Gemini (optional)
-
-In `.env`:
 
 ```
 AI_PROVIDER=gemini
@@ -110,40 +183,11 @@ GEMINI_API_KEY=your-key
 GEMINI_MODEL=gemini-2.0-flash
 ```
 
-Restart the backend. If the key is missing while `AI_PROVIDER=gemini`, the process fails closed rather than silently pretending to succeed.
+If JSON is malformed, triage falls back to the recorded demo rules instead of guessing.
 
-## Security notes (prototype)
+## Honest limits
 
-- Credentials live in `.env`, which is gitignored. `.env.example` has placeholders only.
-- Patch application is restricted to a disposable workspace. Path traversal and writes outside that workspace are rejected.
-- Tests run with subprocess argument lists (`shell=False`), timeouts, and captured output.
-- The model cannot choose arbitrary shell commands.
-- Nothing is committed, pushed, merged, or deployed automatically.
-- Incident text and repository files are treated as untrusted input.
-- The dashboard cannot approve a patch that failed validation.
-
-## Known limitations and next steps
-
-- No GitHub pull-request integration yet (approval is a recorded decision).
-- LangGraph is not included; the orchestrator is the insertion point.
-- Mock provider only has a precise diagnosis/patch for the sample `add()` bug.
-- Gemini JSON parsing is best-effort; malformed replies fail the step instead of storing fake success.
-- Single-process SQLite is enough for a local demo, not for multi-instance production.
-- No authentication on the API.
-- Validation passing is **not** a proof that a fix is correct.
-
-Reasonable next steps: GitHub PR service after approval, LangGraph workflow graph, auth, richer context gathering, and sandboxing beyond a temp directory.
-
-## HTTP surface
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/health` | Liveness and provider name |
-| POST | `/api/incidents` | Ingest an incident |
-| GET | `/api/incidents` | List incidents |
-| GET | `/api/incidents/{id}` | Fetch one incident |
-| POST | `/api/incidents/{id}/analyze` | Root-cause hypothesis |
-| POST | `/api/incidents/{id}/generate-patch` | Store a proposed diff |
-| POST | `/api/incidents/{id}/validate` | Test the diff in a temp copy |
-| POST | `/api/incidents/{id}/approve` | Human approve (no merge) |
-| POST | `/api/incidents/{id}/reject` | Human reject with a reason |
+- Web backends first (APIs). Mobile/desktop would need different SDKs.
+- Shop control actions are demo adapters. Real k8s/feature-flag tools would implement the same interface.
+- A passing sandbox test is not proof the fix is correct.
+- No auth on the local API.

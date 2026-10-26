@@ -2,19 +2,36 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import datetime, timezone
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import NotFoundError, SentinelAIError
-from backend.app.models.incident import IncidentStatus
-from backend.app.models.schemas import HistoryEvent, IncidentCreate, IncidentPublic
+from backend.app.models.incident import IN_PROGRESS_STATUSES, TERMINAL_STATUSES, IncidentStatus
+from backend.app.models.schemas import AlertCreate, HistoryEvent, IncidentCreate, IncidentPublic
 from backend.app.repositories.incident_repository import IncidentRepository
+from backend.app.services.events import hub
+from backend.app.services.redact import redact_payload
 from backend.app.services.source_context import resolve_repository_path
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def fingerprint_for(alert: AlertCreate) -> str:
+    if alert.fingerprint:
+        return alert.fingerprint
+    raw = "|".join(
+        [
+            alert.service,
+            alert.endpoint or "",
+            (alert.error_message or "")[:160],
+            (alert.stack_trace or "").splitlines()[-1] if alert.stack_trace else "",
+        ]
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 class IncidentService:
@@ -33,6 +50,7 @@ class IncidentService:
             stack_trace=payload.stack_trace or "",
             repository_path=repo_path,
             status=IncidentStatus.RECEIVED,
+            source="manual",
             history=[
                 HistoryEvent(
                     timestamp=now,
@@ -45,7 +63,72 @@ class IncidentService:
             created_at=now,
             updated_at=now,
         )
-        return self.repository.create(incident)
+        stored = self.repository.create(incident)
+        self._notify(stored, "created")
+        return stored
+
+    def ingest_alert(self, alert: AlertCreate) -> IncidentPublic:
+        repo_path = alert.repository_path or "victim_app"
+        try:
+            resolve_repository_path(repo_path, self.settings)
+        except SentinelAIError:
+            repo_path = "victim_app"
+            resolve_repository_path(repo_path, self.settings)
+        fp = fingerprint_for(alert)
+        existing = self.repository.find_open_by_fingerprint(fp)
+        captured = redact_payload(alert.captured_request) if alert.captured_request else None
+        if existing:
+            existing.occurrence_count += 1
+            existing.error_message = alert.error_message
+            existing.stack_trace = alert.stack_trace or existing.stack_trace
+            if captured:
+                existing.captured_request = captured
+            if alert.logs:
+                existing.logs = (existing.logs + alert.logs)[-80:]
+            existing.history.append(
+                HistoryEvent(
+                    timestamp=_utcnow(),
+                    from_status=existing.status,
+                    to_status=existing.status,
+                    event="duplicate_alert",
+                    detail=f"Grouped alert #{existing.occurrence_count} with fingerprint {fp}.",
+                )
+            )
+            stored = self.repository.save(existing)
+            self.repository.add_audit(stored.id, alert.source, "duplicate_alert", fp)
+            self._notify(stored, "updated")
+            return stored
+
+        now = _utcnow()
+        title = (alert.title or f"{alert.service} alert: {alert.error_message[:80]}").strip()
+        incident = IncidentPublic(
+            id=str(uuid.uuid4()),
+            title=title[:240],
+            error_message=alert.error_message.strip(),
+            stack_trace=alert.stack_trace or "",
+            repository_path=repo_path,
+            status=IncidentStatus.RECEIVED,
+            source=alert.source,
+            service=alert.service,
+            fingerprint=fp,
+            captured_request=captured,
+            logs=list(alert.logs or []),
+            history=[
+                HistoryEvent(
+                    timestamp=now,
+                    from_status=None,
+                    to_status=IncidentStatus.RECEIVED,
+                    event="alert_ingested",
+                    detail=f"Alert from {alert.source} ({alert.endpoint or 'n/a'}).",
+                )
+            ],
+            created_at=now,
+            updated_at=now,
+        )
+        stored = self.repository.create(incident)
+        self.repository.add_audit(stored.id, alert.source, "alert_ingested", title)
+        self._notify(stored, "created")
+        return stored
 
     def get(self, incident_id: str) -> IncidentPublic:
         incident = self.repository.get(incident_id)
@@ -56,6 +139,11 @@ class IncidentService:
     def list(self) -> list[IncidentPublic]:
         return self.repository.list()
 
+    def save(self, incident: IncidentPublic) -> IncidentPublic:
+        stored = self.repository.save(incident)
+        self._notify(stored, "updated")
+        return stored
+
     def transition(
         self,
         incident: IncidentPublic,
@@ -64,8 +152,6 @@ class IncidentService:
         detail: str = "",
     ) -> IncidentPublic:
         previous = incident.status
-        if previous == new_status:
-            return incident
         incident.history.append(
             HistoryEvent(
                 timestamp=_utcnow(),
@@ -76,18 +162,31 @@ class IncidentService:
             )
         )
         incident.status = new_status
-        return self.repository.save(incident)
+        stored = self.repository.save(incident)
+        self.repository.add_audit(stored.id, "system", event, detail)
+        self._notify(stored, event)
+        return stored
 
     def require_not_busy(self, incident: IncidentPublic) -> None:
-        if incident.status in {IncidentStatus.ANALYZING, IncidentStatus.VALIDATING}:
+        if incident.status in IN_PROGRESS_STATUSES:
             raise SentinelAIError(
                 "This incident already has an in-progress operation.",
                 code="in_progress",
                 status_code=409,
             )
-        if incident.status in {IncidentStatus.APPROVED, IncidentStatus.REJECTED}:
+        if incident.status in TERMINAL_STATUSES:
             raise SentinelAIError(
                 f"Incident is already {incident.status.value} and cannot be changed.",
                 code="terminal_state",
                 status_code=409,
             )
+
+    def _notify(self, incident: IncidentPublic, event: str) -> None:
+        hub.publish_sync(
+            {
+                "event": event,
+                "id": incident.id,
+                "status": incident.status.value,
+                "title": incident.title,
+            }
+        )

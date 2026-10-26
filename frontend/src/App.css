@@ -5,7 +5,7 @@
   min-height: 100vh;
   color: var(--ink);
   position: relative;
-  background: #5a0812;
+  background: #8a0e1c;
 }
 
 .stage {
@@ -35,8 +35,9 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 214, 120, 0.16), transparent 55%),
-    linear-gradient(180deg, rgba(70, 8, 16, 0.28) 0%, rgba(28, 4, 8, 0.55) 70%, rgba(18, 2, 6, 0.78) 100%);
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 214, 80, 0.32), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 90% 20%, rgba(255, 60, 90, 0.22), transparent 50%),
+    linear-gradient(180deg, rgba(90, 8, 18, 0.18) 0%, rgba(40, 4, 10, 0.42) 70%, rgba(18, 2, 6, 0.72) 100%);
 }
 
 .gold-geometry {
@@ -92,8 +93,8 @@
   position: fixed;
   inset: 0;
   z-index: 1;
-  background: radial-gradient(420px 420px at var(--mx) var(--my),
-      rgba(240, 193, 75, 0.16),
+  background: radial-gradient(480px 480px at var(--mx) var(--my),
+      rgba(255, 210, 70, 0.28),
       transparent 62%);
 }
 
@@ -376,7 +377,7 @@
 
 .logo {
   font-family: var(--condensed);
-  font-size: 28px;
+  font-size: 34px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);
@@ -393,7 +394,7 @@
 }
 
 .site-header nav a {
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
@@ -471,7 +472,7 @@
   flex-direction: column;
   align-items: center;
   font-family: var(--display);
-  font-size: clamp(52px, 8.4vw, 104px);
+  font-size: clamp(58px, 9vw, 116px);
   line-height: 0.86;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -571,10 +572,10 @@
 }
 
 .hero-copy {
-  max-width: 360px;
+  max-width: 420px;
   margin: 28px auto 22px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 17px;
   line-height: 1.6;
 }
 
@@ -837,7 +838,7 @@
 .about-grid h2 {
   margin: 0 0 28px;
   font-family: var(--condensed);
-  font-size: clamp(28px, 4vw, 48px);
+  font-size: clamp(32px, 4.4vw, 54px);
   line-height: 1.12;
   font-weight: 600;
   text-transform: none;
@@ -856,7 +857,7 @@
 
 .material h3 {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 16px;
   border-left: 2px solid var(--ink);
   padding-left: 10px;
 }
@@ -867,7 +868,7 @@
 .process-body p,
 .posts p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.65;
 }
 
@@ -1683,19 +1684,19 @@
    ========================================================================== */
 
 .console-page.page {
-  --bl-bg: #fcf9f6;
+  --bl-bg: #fff3ec;
   --bl-card: #ffffff;
-  --bl-card-subtle: #faf5f3;
-  --bl-wine: #8e2b3e;
-  --bl-wine-dark: #741f2f;
-  --bl-wine-light: #fbebee;
-  --bl-wine-border: rgba(142, 43, 62, 0.22);
-  --bl-border: rgba(150, 100, 110, 0.18);
-  --bl-border-strong: rgba(142, 43, 62, 0.38);
-  --bl-text-title: #221518;
-  --bl-text-body: #58444a;
-  --bl-text-muted: #8b7379;
-  --bl-text-faint: #bda8af;
+  --bl-card-subtle: #ffe9e1;
+  --bl-wine: #d4143a;
+  --bl-wine-dark: #a80e2c;
+  --bl-wine-light: #ffe0e6;
+  --bl-wine-border: rgba(212, 20, 58, 0.32);
+  --bl-border: rgba(212, 20, 58, 0.18);
+  --bl-border-strong: rgba(212, 20, 58, 0.48);
+  --bl-text-title: #1c0b10;
+  --bl-text-body: #4a2430;
+  --bl-text-muted: #7a4452;
+  --bl-text-faint: #b06a78;
   --bl-font-serif: 'Newsreader', 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
   --bl-font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --bl-font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
@@ -1745,15 +1746,15 @@
   height: 760px;
   border-radius: 50%;
   background: radial-gradient(circle,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(252, 215, 228, 0.55) 30%,
-      rgba(202, 226, 255, 0.32) 55%,
-      rgba(235, 198, 222, 0.18) 70%,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 140, 180, 0.7) 28%,
+      rgba(255, 196, 70, 0.42) 52%,
+      rgba(255, 80, 120, 0.22) 70%,
       transparent 80%);
   filter: blur(56px);
   pointer-events: none;
   z-index: 1;
-  opacity: 0.7;
+  opacity: 0.85;
   animation: portalDrift 10s ease-in-out infinite alternate;
 }
 
@@ -1802,7 +1803,7 @@
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid var(--bl-border);
   border-radius: 20px;
-  box-shadow: 0 16px 36px -12px rgba(142, 43, 62, 0.05), 0 2px 6px rgba(142, 43, 62, 0.02);
+  box-shadow: 0 16px 36px -12px rgba(212, 20, 58, 0.14), 0 2px 8px rgba(255, 180, 60, 0.12);
   backdrop-filter: blur(24px) saturate(180%);
   height: 100%;
   max-height: 100%;
@@ -1829,7 +1830,8 @@
   letter-spacing: -0.02em;
   color: var(--bl-text-title);
   text-decoration: none;
-  margin-bottom: 22px;
+  margin-bottom: 12px;
+  font-size: 20px;
 }
 
 .cs-bloom-flower {
@@ -1872,17 +1874,42 @@
   width: 100%;
   border: 0;
   border-radius: 12px;
-  padding: 11px 14px;
+  padding: 8px 12px;
   background: var(--bl-wine);
   color: #ffffff;
   font-family: var(--bl-font-mono);
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   box-shadow: 0 4px 16px -2px rgba(142, 43, 62, 0.35);
   transition: all 0.16s ease;
   cursor: pointer;
+}
+
+.cs-demo-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cs-demo-actions .cs-section-label {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+}
+
+.cs-new.ghost {
+  background: #ffffff;
+  color: var(--bl-wine);
+  border: 1px solid var(--bl-wine-border);
+  box-shadow: none;
+  padding: 7px 8px;
+  font-size: 10px;
+}
+
+.cs-new.ghost:hover {
+  background: var(--bl-wine-light);
 }
 
 .cs-new:hover {
@@ -1895,7 +1922,7 @@
 .cs-nav {
   display: grid;
   gap: 4px;
-  margin: 20px 0 16px;
+  margin: 12px 0 10px;
 }
 
 .cs-nav a {
@@ -1970,11 +1997,11 @@
 }
 
 .cs-threads strong {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--bl-text-title);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.35;
@@ -1982,7 +2009,7 @@
 
 .cs-threads span {
   font-family: var(--bl-font-mono);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--bl-text-muted);
 }
 
@@ -2018,9 +2045,9 @@
 
 /* Human Safety Guarantee Card */
 .cs-plan {
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: 14px;
+  margin-top: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: #ffffff;
   border: 1px solid var(--bl-wine-border);
   box-shadow: 0 4px 14px -2px rgba(142, 43, 62, 0.05);
@@ -2045,11 +2072,11 @@
 .cs-plan strong {
   display: block;
   font-family: var(--bl-font-serif);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--bl-text-title);
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 }
 
 .cs-plan small {
@@ -2078,6 +2105,7 @@
   align-items: center;
   padding: 16px 22px 14px;
   border-bottom: 1px solid var(--bl-border);
+  flex-shrink: 0;
 }
 
 .cs-kicker {
@@ -2091,13 +2119,17 @@
 }
 
 .cs-editorial-heading {
-  margin: 6px 0 8px;
+  margin: 4px 0 4px;
   font-family: var(--bl-font-serif);
-  font-size: clamp(26px, 2.5vw, 34px);
+  font-size: clamp(22px, 2vw, 28px);
   font-weight: 400;
-  line-height: 1.18;
+  line-height: 1.2;
   letter-spacing: -0.02em;
   color: var(--bl-text-title);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .cs-editorial-heading em {
@@ -2108,10 +2140,13 @@
 
 .cs-editorial-sub {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--bl-text-muted);
-  max-width: 680px;
+  max-width: 640px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Health Badge with Ethereal Portal Ring */
@@ -2152,8 +2187,8 @@
 }
 
 .cs-health.up .cs-portal-dot {
-  background: #287a53;
-  box-shadow: 0 0 0 4px rgba(40, 122, 83, 0.2), 0 0 10px rgba(40, 122, 83, 0.4);
+  background: #1dbf6a;
+  box-shadow: 0 0 0 5px rgba(29, 191, 106, 0.22), 0 0 14px rgba(29, 191, 106, 0.55);
 }
 
 .cs-banner {
@@ -2495,10 +2530,10 @@
 .cs-pipeline li {
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid var(--bl-border);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 8px 10px;
   font-family: var(--bl-font-mono);
-  font-size: 10.5px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--bl-text-muted);
@@ -2579,16 +2614,16 @@
 }
 
 .cs-tabs button.on {
-  background: #241619;
+  background: var(--bl-wine);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(36, 22, 25, 0.18);
+  box-shadow: 0 2px 10px rgba(212, 20, 58, 0.35);
 }
 
 /* Bubbles & Cards */
 .cs-bubble {
-  padding: 18px 22px;
-  border-radius: 16px;
-  line-height: 1.55;
+  padding: 14px 16px;
+  border-radius: 14px;
+  line-height: 1.45;
   animation: fadeSlide 0.35s ease both;
   box-shadow: 0 4px 14px -2px rgba(142, 43, 62, 0.04);
 }
@@ -2836,12 +2871,28 @@
 
 /* Bottom Action Composer Dock */
 .cs-composer {
-  padding: 14px 28px 18px;
+  padding: 10px 20px 12px;
   border-top: 1px solid var(--bl-border);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cs-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+}
+
+.cs-tools .cs-btn {
+  padding: 8px 12px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cs-reject {
@@ -2881,13 +2932,13 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .cs-rail-head strong {
   display: block;
   font-family: var(--bl-font-serif);
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: -0.01em;
   color: var(--bl-text-title);
 }
@@ -2955,8 +3006,10 @@
 }
 
 .cs-files {
-  margin-top: 20px;
+  margin-top: 14px;
   flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .cs-files ul {
@@ -3024,19 +3077,174 @@
   color: var(--bl-wine);
 }
 
+.console-page .cs-brand {
+  font-size: 24px;
+}
+
+.console-page .cs-brand-badge {
+  font-size: 11px;
+}
+
+.console-page .cs-new {
+  font-size: 13px;
+  padding: 11px 14px;
+}
+
+.console-page .cs-new.ghost {
+  font-size: 12px;
+  padding: 9px 10px;
+}
+
+.console-page .cs-nav a {
+  font-size: 15px;
+}
+
+.console-page .cs-section-label,
+.console-page .cs-kicker,
+.console-page .cs-form-kicker,
+.console-page .cs-prompt-label,
+.console-page .cs-mono-header,
+.console-page .cs-mono-meta,
+.console-page .cs-prompt-compat {
+  font-size: 12px;
+}
+
+.console-page .cs-editorial-heading {
+  font-size: clamp(28px, 2.8vw, 38px);
+}
+
+.console-page .cs-editorial-sub {
+  font-size: 15px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.console-page .cs-health strong {
+  font-size: 14px;
+}
+
+.console-page .cs-health small,
+.console-page .cs-banner {
+  font-size: 13px;
+}
+
+.console-page .cs-prompt-text,
+.console-page .cs-compat-pills code {
+  font-size: 14px;
+}
+
+.console-page .cs-form-head h3,
+.console-page .cs-card-heading {
+  font-size: 24px;
+}
+
+.console-page .cs-field-label {
+  font-size: 13px;
+}
+
+.console-page .cs-form-card input,
+.console-page .cs-form-card textarea,
+.console-page .cs-reject input {
+  font-size: 15.5px;
+}
+
+.console-page .cs-btn {
+  font-size: 13px;
+  padding: 11px 16px;
+}
+
+.console-page .cs-tools .cs-btn {
+  font-size: 12px;
+  padding: 10px 14px;
+}
+
+.console-page .cs-pipeline li {
+  font-size: 12px;
+}
+
+.console-page .cs-pipeline li span {
+  font-size: 15px;
+}
+
+.console-page .cs-tabs button {
+  font-size: 13px;
+  padding: 8px 18px;
+}
+
+.console-page .cs-bubble p,
+.console-page .cs-bubble li {
+  font-size: 15.5px;
+}
+
+.console-page .cs-bubble header {
+  font-size: 13px;
+}
+
+.console-page .cs-code-card pre,
+.console-page .cs-history pre,
+.console-page .cs-history ul,
+.console-page .cs-hint,
+.console-page .cs-empty,
+.console-page .cs-thanks {
+  font-size: 14px;
+}
+
+.console-page .cs-code-title,
+.console-page .cs-history summary,
+.console-page .cs-back {
+  font-size: 13px;
+}
+
+.console-page .cs-rail-head strong {
+  font-size: 22px;
+}
+
+.console-page .cs-stats small,
+.console-page .cs-rail-chip,
+.console-page .cs-pill,
+.console-page .cs-check-badge {
+  font-size: 12px;
+}
+
+.console-page .cs-threads li button {
+  font-size: 14px;
+}
+
+.console-page .cs-threads strong {
+  font-size: 14px;
+}
+
 @media (max-width: 1100px) {
   .console-page .stage {
     grid-template-columns: 1fr;
+  }
+
+  .console-page.page,
+  .console-page .stage {
+    height: auto;
+    max-height: none;
+    overflow: auto;
   }
 
   .cs-sidebar,
   .cs-rail,
   .cs-center {
     min-height: auto;
+    max-height: none;
+    height: auto;
   }
 
-  .cs-pipeline {
+  .cs-pipeline,
+  .cs-overview-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .cs-editorial-sub {
+    white-space: normal;
+  }
+
+  .cs-tools {
+    flex-wrap: wrap;
   }
 
   .cs-bubble {

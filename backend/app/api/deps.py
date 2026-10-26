@@ -10,8 +10,13 @@ from backend.app.repositories.incident_repository import IncidentRepository
 from backend.app.services.ai_provider import get_provider
 from backend.app.services.analyzer import Analyzer
 from backend.app.services.approval_service import ApprovalService
+from backend.app.services.context_collector import ContextCollector
 from backend.app.services.incident_service import IncidentService
+from backend.app.services.mitigation import MitigationService
 from backend.app.services.patcher import Patcher
+from backend.app.services.postmortem import PostmortemService
+from backend.app.services.replay_service import ReplayService
+from backend.app.services.triage import TriageEngine
 from backend.app.services.validator import Validator
 from backend.app.workflow.orchestrator import Orchestrator
 
@@ -34,12 +39,17 @@ def build_container(settings: Settings | None = None) -> AppContainer:
     analyzer = Analyzer(provider, settings)
     patcher = Patcher(provider, settings)
     validator = Validator(settings)
+    collector = ContextCollector(settings)
     orchestrator = Orchestrator(
         incidents=incidents,
         analyzer=analyzer,
         patcher=patcher,
         validator=validator,
         approvals=ApprovalService(),
+        triage=TriageEngine(provider, collector, settings),
+        mitigation=MitigationService(settings),
+        replay_service=ReplayService(settings, validator),
+        postmortems=PostmortemService(provider),
     )
     return AppContainer(
         settings=settings,

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Any
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import SentinelAIError
-from backend.app.models.schemas import IncidentPublic
+from backend.app.models.schemas import IncidentPublic, Verdict
 
 ANALYSIS_DISCLAIMER = (
     "AI-generated hypothesis, not verified fact. A human must review before any change."
@@ -41,6 +42,12 @@ class AIProvider(ABC):
 
     @abstractmethod
     def generate_patch(self, incident: IncidentPublic, source_context: str) -> PatchDraft:
+        raise NotImplementedError
+
+    def triage_incident(self, incident: IncidentPublic, context: dict[str, Any]) -> Verdict:
+        raise NotImplementedError
+
+    def generate_postmortem(self, incident: IncidentPublic) -> str:
         raise NotImplementedError
 
 

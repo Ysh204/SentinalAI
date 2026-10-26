@@ -165,9 +165,9 @@ export const sampleIncident = {
 }
 
 export const workflow = [
-  'RECEIVED',
-  'ANALYZED',
-  'PATCH_GENERATED',
-  'VALIDATED',
-  'APPROVED',
+  'Detected',
+  'Triaged',
+  'Action ready',
+  'Verified',
+  'Approved',
 ] as const

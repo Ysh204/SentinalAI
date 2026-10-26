@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,10 @@ class Validator:
                 # Git init is optional for validation; tests still run.
                 pass
             applied = apply_unified_diff(incident.proposed_patch, workspace)
+            if (workspace / "shop.py").exists():
+                from backend.app.services.replay_service import REPRO_TEST
+
+                (workspace / "test_repro_checkout.py").write_text(REPRO_TEST, encoding="utf-8")
             pytest_check = self._run_pytest(workspace)
             ruff_check = self._run_ruff(workspace)
             checks = [pytest_check, ruff_check]
@@ -102,6 +107,8 @@ class Validator:
         timeout: int,
     ) -> ValidationCheck:
         try:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(cwd)
             completed = subprocess.run(
                 command,
                 cwd=cwd,
@@ -110,6 +117,7 @@ class Validator:
                 timeout=timeout,
                 check=False,
                 shell=False,
+                env=env,
             )
         except FileNotFoundError:
             return ValidationCheck(name=name, status="skipped", detail=f"{name} is not installed.")
