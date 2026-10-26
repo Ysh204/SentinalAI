@@ -31,7 +31,12 @@ def simulate_incident(request: Request) -> IncidentPublic:
             endpoint="/checkout",
             status_code=503,
             logs=["14 timeouts to payments API in 2 min", "no deploy in last 6h"],
-            captured_request={"method": "POST", "path": "/checkout", "status_code": 503, "body": {"order_id": "ord-1001"}},
+            captured_request={
+                "method": "POST",
+                "path": "/checkout",
+                "status_code": 503,
+                "body": {"order_id": "ord-1001"},
+            },
         ),
         request,
     )
@@ -41,8 +46,8 @@ def _break_and_ingest(container, mode: str) -> IncidentPublic:
     import httpx
 
     from victim_app import state
-    from victim_app.shop import SAMPLE_CART, _run_checkout
     from victim_app.redact import redact
+    from victim_app.shop import SAMPLE_CART, _run_checkout
 
     url = container.settings.victim_app_url.rstrip("/")
     error = f"injected {mode}"

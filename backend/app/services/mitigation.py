@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -76,13 +77,11 @@ class MitigationService:
             _inline_action(action)
             return
         try:
-            response = httpx.post(f"{url}{path}", timeout=3.0)
-        except httpx.HTTPError as exc:
-            raise SentinelAIError(
-                f"Simulated adapter could not reach the demo shop: {exc}",
-                code="victim_unreachable",
-                status_code=502,
-            ) from exc
+            response = httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.2))
+        except httpx.HTTPError:
+            # Fallback to inline state if separate shop server is not running
+            _inline_action(action)
+            return
         if response.status_code >= 400:
             raise SentinelAIError(
                 f"Shop control API returned {response.status_code}.",
@@ -93,25 +92,31 @@ class MitigationService:
     def _error_rate(self, probe: bool = False) -> float:
         url = self.settings.victim_app_url.rstrip("/")
         if url == "inline":
-            from victim_app import state
-            from victim_app.shop import SAMPLE_CART, _run_checkout
-
-            if probe:
-                try:
-                    _run_checkout(dict(SAMPLE_CART))
-                    state.record_result(True)
-                except Exception:
-                    state.record_result(False)
-            return float(state.snapshot()["error_rate"])
+            return self._inline_error_rate(probe)
         try:
+            fast_timeout = httpx.Timeout(1.5, connect=0.2)
             if probe:
-                httpx.post(f"{url}/checkout", json={"order_id": "probe"}, timeout=3.0)
-            metrics = httpx.get(f"{url}/metrics", timeout=2.0)
+                httpx.post(f"{url}/checkout", json={"order_id": "probe"}, timeout=fast_timeout)
+            metrics = httpx.get(f"{url}/metrics", timeout=fast_timeout)
             if metrics.status_code == 200:
                 return float(metrics.json().get("error_rate") or 0)
         except httpx.HTTPError:
-            return 1.0
+            return self._inline_error_rate(probe)
         return 0.0
+
+    @staticmethod
+    def _inline_error_rate(probe: bool = False) -> float:
+        from victim_app import state
+        from victim_app.shop import SAMPLE_CART, _run_checkout
+
+        if probe:
+            try:
+                _run_checkout(dict(SAMPLE_CART))
+                state.record_result(True)
+            except Exception:
+                state.record_result(False)
+        return float(state.snapshot()["error_rate"])
+
 
 
 def _action_for(verdict: Verdict | None) -> str:

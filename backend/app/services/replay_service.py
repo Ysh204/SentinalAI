@@ -91,8 +91,15 @@ class ReplayService:
 
 
 def as_check(replay: ReplayResult) -> ValidationCheck:
+    status = (
+        "passed"
+        if replay.after_ok and not replay.before_ok
+        else ("passed" if replay.after_ok else "failed")
+    )
+    before_status = "ok" if replay.before_ok else "fail"
+    after_status = "ok" if replay.after_ok else "fail"
     return ValidationCheck(
         name="request_replay",
-        status="passed" if replay.after_ok and not replay.before_ok else ("passed" if replay.after_ok else "failed"),
-        detail=f"before={'ok' if replay.before_ok else 'fail'} after={'ok' if replay.after_ok else 'fail'}. {replay.detail}",
+        status=status,
+        detail=f"before={before_status} after={after_status}. {replay.detail}",
     )
