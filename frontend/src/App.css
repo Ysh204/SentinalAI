@@ -1700,31 +1700,6 @@
   --bl-font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --bl-font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 
-<<<<<<< Updated upstream
-  background: var(--bl-bg);
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-  color: var(--bl-text-body);
-}
-
-.console-page .stage {
-  position: relative;
-  z-index: 2;
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 270px;
-  gap: 16px;
-  padding: 16px;
-  font-family: var(--bl-font-sans);
-  background:
-    radial-gradient(ellipse 65% 45% at 50% -5%, rgba(246, 205, 218, 0.5), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 92% 10%, rgba(205, 225, 255, 0.28), transparent 50%),
-    radial-gradient(ellipse 55% 45% at 8% 22%, rgba(248, 195, 210, 0.38), transparent 50%),
-    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(245, 220, 226, 0.45), transparent 60%),
-    #fcf9f6;
-  max-width: 1720px;
-=======
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -1756,7 +1731,6 @@
   font-family: var(--bl-font-sans);
   background: transparent;
   max-width: 1800px;
->>>>>>> Stashed changes
   margin: 0 auto;
   box-sizing: border-box;
 }
@@ -1840,14 +1814,8 @@
 .cs-rail {
   display: flex;
   flex-direction: column;
-<<<<<<< Updated upstream
-  padding: 22px 18px;
-  min-height: calc(100vh - 32px);
-  box-sizing: border-box;
-=======
   padding: 16px 14px;
   overflow: hidden;
->>>>>>> Stashed changes
 }
 
 /* Brand (like /bloom) */
@@ -2095,13 +2063,9 @@
 .cs-center {
   display: flex;
   flex-direction: column;
-<<<<<<< Updated upstream
-  min-height: calc(100vh - 32px);
-=======
   min-height: 0;
   height: 100%;
   max-height: 100%;
->>>>>>> Stashed changes
   overflow: hidden;
   padding: 0;
   box-sizing: border-box;
@@ -2111,13 +2075,8 @@
   display: flex;
   justify-content: space-between;
   gap: 16px;
-<<<<<<< Updated upstream
-  align-items: flex-start;
-  padding: 24px 28px 18px;
-=======
   align-items: center;
   padding: 16px 22px 14px;
->>>>>>> Stashed changes
   border-bottom: 1px solid var(--bl-border);
 }
 
@@ -2224,14 +2183,6 @@
 .cs-scroll {
   flex: 1;
   overflow-y: auto;
-<<<<<<< Updated upstream
-  padding: 18px 28px 24px;
-  display: grid;
-  gap: 16px;
-  align-content: start;
-}
-
-=======
   min-height: 0;
   padding: 14px 22px 18px;
   display: grid;
@@ -2284,8 +2235,6 @@
   color: inherit;
   text-transform: capitalize;
 }
-
->>>>>>> Stashed changes
 .cs-compose-wrap {
   display: grid;
   gap: 16px;
@@ -2998,11 +2947,7 @@
 .cs-stats b {
   display: block;
   font-family: var(--bl-font-serif);
-<<<<<<< Updated upstream
-  font-size: 28px;
-=======
   font-size: 24px;
->>>>>>> Stashed changes
   letter-spacing: -0.02em;
   margin-top: 3px;
   color: var(--bl-text-title);
