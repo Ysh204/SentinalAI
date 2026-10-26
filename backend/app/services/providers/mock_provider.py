@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from backend.app.models.schemas import IncidentPublic, Verdict
 from backend.app.services.ai_provider import AIProvider, AnalysisDraft, PatchDraft
 from backend.app.services.triage_rules import apply_confidence_gate, classify

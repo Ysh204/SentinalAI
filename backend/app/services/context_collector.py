@@ -30,13 +30,15 @@ class ContextCollector:
             context["victim"] = _inline_victim_context()
             return context
         try:
-            response = httpx.get(f"{url}/control/context", timeout=2.0)
+            response = httpx.get(f"{url}/control/context", timeout=httpx.Timeout(1.0, connect=0.2))
             if response.status_code == 200:
                 context["victim"] = response.json()
             else:
                 context["collector_error"] = f"victim context HTTP {response.status_code}"
+                context["victim"] = _inline_victim_context()
         except httpx.HTTPError as exc:
-            context["collector_error"] = f"victim app unreachable: {exc}"
+            context["collector_error"] = f"victim app unreachable ({exc}); fell back to inline state"
+            context["victim"] = _inline_victim_context()
         return context
 
 

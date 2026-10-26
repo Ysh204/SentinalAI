@@ -42,13 +42,16 @@ def metrics(request: Request) -> MetricsResponse:
 
 @router.post("/api/eval/run")
 def run_eval(request: Request) -> dict:
+    import uuid
+
     from victim_app import state
 
     container = request.app.state.container
+    run_id = uuid.uuid4().hex[:8]
     results = []
     for scenario in SCENARIOS:
         state.inject(scenario.mode)
-        alert = scenario.alert.model_copy(update={"fingerprint": f"eval:{scenario.name}"})
+        alert = scenario.alert.model_copy(update={"fingerprint": f"eval:{run_id}:{scenario.name}"})
         incident = container.incidents.ingest_alert(alert)
         incident = container.orchestrator.triage_incident(incident.id)
         results.append((scenario, incident))

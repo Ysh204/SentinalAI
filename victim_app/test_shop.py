@@ -1,11 +1,11 @@
 from fastapi.testclient import TestClient
 
 try:
-    from victim_app.main import app
     from victim_app import state
+    from victim_app.main import app
 except ImportError:
-    from main import app
     import state
+    from main import app
 
 
 def setup_function() -> None:
