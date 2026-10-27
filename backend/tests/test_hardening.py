@@ -42,6 +42,22 @@ def test_observable_victim_strips_injector_label() -> None:
     assert "checkout crash" in cleaned["recent_logs"]
 
 
+def test_observable_victim_handles_direct_victim_dict() -> None:
+    cleaned = observable_victim(
+        {
+            "failure_mode": "bad_deploy",
+            "deploy_version": "bad-2.0.0",
+            "recent_logs": ["booting", "injected failure_mode=bad_deploy", "500 error"],
+            "dependency_health": {"payments": "up"},
+        }
+    )
+    assert "failure_mode" not in cleaned
+    assert "injected failure_mode=bad_deploy" not in cleaned["recent_logs"]
+    assert "500 error" in cleaned["recent_logs"]
+    assert cleaned["deploy_version"] == "bad-2.0.0"
+    assert cleaned["dependency_health"]["payments"] == "up"
+
+
 def test_triage_does_not_read_failure_mode_answer_key() -> None:
     incident = _incident(error_message="users are mildly annoyed", logs=["nothing useful"])
     verdict = classify(

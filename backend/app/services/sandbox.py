@@ -47,6 +47,10 @@ def sandbox_env(pythonpath: str | os.PathLike[str]) -> dict[str, str]:
     env["PYTHONNOUSERSITE"] = "1"
     env["PYTHONSAFEPATH"] = "1"
     env["PYTHONUTF8"] = "1"
+    # Null route proxies to block outbound HTTP/HTTPS calls from untrusted patch code
+    env["http_proxy"] = "http://127.0.0.1:0"
+    env["https_proxy"] = "http://127.0.0.1:0"
+    env["all_proxy"] = "socks5://127.0.0.1:0"
     return env
 
 

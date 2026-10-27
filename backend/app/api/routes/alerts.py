@@ -63,11 +63,15 @@ def _break_and_ingest(container, mode: str) -> IncidentPublic:
             error = f"checkout still succeeding after inject {mode}"
             status_code = 200
         except Exception as exc:
+            import traceback
+
+            state.record_result(False)
             error = str(exc)
-            stack = f"{type(exc).__name__}: {exc}"
+            stack = traceback.format_exc()
             status_code = 503 if "unavailable" in error.lower() else 401 if "key" in error.lower() else 500
         logs = state.snapshot()["logs"][-20:]
         captured["status_code"] = status_code
+        captured["inject"] = mode
     else:
         try:
             httpx.post(f"{url}/control/inject", json={"mode": mode}, timeout=3.0)
@@ -76,13 +80,16 @@ def _break_and_ingest(container, mode: str) -> IncidentPublic:
             body = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
             error = str(body.get("detail") or body or f"HTTP {status_code}")
             captured["status_code"] = status_code
+            captured["inject"] = mode
             ctx = httpx.get(f"{url}/control/context", timeout=2.0)
             if ctx.status_code == 200:
                 logs = list(ctx.json().get("recent_logs") or [])
         except httpx.HTTPError:
             state.inject(mode)
+            state.record_result(False)
             error = f"shop unreachable; injected {mode} locally"
             logs = state.snapshot()["logs"][-20:]
+            captured["inject"] = mode
 
     incident = container.incidents.ingest_alert(
         AlertCreate(
