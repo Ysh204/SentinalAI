@@ -11,7 +11,10 @@ LOW_CONFIDENCE = 0.55
 
 
 def observable_victim(context: dict[str, Any]) -> dict[str, Any]:
-    victim = dict(context.get("victim") or {})
+    if not context:
+        return {"recent_logs": []}
+    victim_data = context.get("victim")
+    victim = dict(victim_data if isinstance(victim_data, dict) else context)
     victim.pop("failure_mode", None)
     logs = []
     for line in victim.get("recent_logs") or []:
@@ -143,7 +146,7 @@ def apply_confidence_gate(verdict: Verdict) -> Verdict:
 def _looks_like_code_bug(text: str, incident: IncidentPublic) -> bool:
     stack = (incident.stack_trace or "").lower()
     error = (incident.error_message or "").lower()
-    in_app = any(token in stack or token in text for token in ("shop.py", "_line_total", "victim_app"))
+    in_app = any(token in stack or token in text for token in ("shop.py", "_line_total", "victim_app", "buggy_app", "/checkout"))
     type_error = any(
         token in error or token in stack or token in text
         for token in (

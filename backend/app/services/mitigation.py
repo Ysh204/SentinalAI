@@ -47,6 +47,13 @@ class MitigationService:
         verdict = incident.verdict
         action = _action_for(verdict)
         before = self._error_rate()
+        if before == 0.0:
+            try:
+                probe = self._probe_error_rate()
+                if probe > 0.0:
+                    before = probe
+            except Exception:
+                pass
         return MitigationRecord(
             action=action,
             simulated=True,
@@ -61,6 +68,13 @@ class MitigationService:
     def execute(self, incident: IncidentPublic, actor: str) -> MitigationRecord:
         record = incident.mitigation or self.propose(incident)
         before = record.error_rate_before if record.error_rate_before is not None else self._error_rate()
+        if before == 0.0:
+            try:
+                probe = self._probe_error_rate()
+                if probe > 0.0:
+                    before = probe
+            except Exception:
+                pass
         self._call(record.action)
         after = self._probe_error_rate()
         recovered = after < before and after <= RECOVERY_ERROR_CEILING

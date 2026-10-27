@@ -41,7 +41,7 @@ class ReplayService:
         if not path.startswith("/"):
             path = "/checkout"
         body = captured.get("body") if isinstance(captured.get("body"), dict) else dict(DEFAULT_BODY)
-        inject = _live_inject_mode(self.settings)
+        inject = _live_inject_mode(self.settings) or captured.get("inject")
 
         before_status, before_detail = self._dispatch_unpatched(method, path, body, inject)
         after_status, after_detail, sandbox_name = self._dispatch_patched(
