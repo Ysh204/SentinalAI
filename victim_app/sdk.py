@@ -29,6 +29,10 @@ def report_error(
     captured_request: dict[str, Any] | None,
     logs: list[str],
 ) -> None:
+    captured = redact(captured_request or {})
+    if isinstance(captured, dict):
+        captured.setdefault("status_code", status_code)
+        captured.setdefault("path", endpoint)
     payload = {
         "source": "sdk",
         "service": "checkout",
@@ -37,7 +41,7 @@ def report_error(
         "stack_trace": stack_trace,
         "endpoint": endpoint,
         "status_code": status_code,
-        "captured_request": redact(captured_request or {}),
+        "captured_request": captured,
         "logs": logs[-20:],
         "repository_path": "victim_app",
         "occurred_at": datetime.now(timezone.utc).isoformat(),

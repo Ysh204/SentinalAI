@@ -8,6 +8,7 @@ import httpx
 
 from backend.app.core.config import Settings
 from backend.app.models.schemas import IncidentPublic
+from backend.app.services.triage_rules import observable_victim
 
 
 class ContextCollector:
@@ -27,18 +28,17 @@ class ContextCollector:
         }
         url = self.settings.victim_app_url.rstrip("/")
         if url == "inline":
-            context["victim"] = _inline_victim_context()
+            context["victim"] = observable_victim(_inline_victim_context())
             return context
         try:
             response = httpx.get(f"{url}/control/context", timeout=httpx.Timeout(1.0, connect=0.2))
-            if response.status_code == 200:
-                context["victim"] = response.json()
-            else:
-                context["collector_error"] = f"victim context HTTP {response.status_code}"
-                context["victim"] = _inline_victim_context()
         except httpx.HTTPError as exc:
-            context["collector_error"] = f"victim app unreachable ({exc}); fell back to inline state"
-            context["victim"] = _inline_victim_context()
+            context["collector_error"] = f"victim app unreachable ({exc})"
+            return context
+        if response.status_code == 200:
+            context["victim"] = observable_victim(response.json())
+        else:
+            context["collector_error"] = f"victim context HTTP {response.status_code}"
         return context
 
 
@@ -51,7 +51,6 @@ def _inline_victim_context() -> dict[str, Any]:
         payments = "auth_failed"
     return {
         "service": "checkout",
-        "failure_mode": snap["failure_mode"],
         "deploy_version": snap["deploy_version"],
         "last_deploy_at": snap["last_deploy_at"],
         "last_deploy_diff": snap["last_deploy_diff"],

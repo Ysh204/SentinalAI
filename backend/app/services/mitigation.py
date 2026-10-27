@@ -13,6 +13,15 @@ from backend.app.core.exceptions import SentinelAIError
 from backend.app.models.incident import VerdictCategory
 from backend.app.models.schemas import IncidentPublic, MitigationRecord, Verdict
 
+PROBE_CART = {
+    "order_id": "probe",
+    "email": "probe@example.com",
+    "card_number": "4242424242424242",
+    "items": [{"sku": "mug", "price": 12, "qty": 1}],
+}
+PROBE_SAMPLES = 5
+RECOVERY_ERROR_CEILING = 0.05
+
 # Real Kubernetes / LaunchDarkly adapters would implement the same callables.
 ACTIONS: dict[str, str] = {
     "rollback": "/control/rollback",
@@ -53,8 +62,8 @@ class MitigationService:
         record = incident.mitigation or self.propose(incident)
         before = record.error_rate_before if record.error_rate_before is not None else self._error_rate()
         self._call(record.action)
-        after = self._error_rate(probe=True)
-        recovered = after <= before or after < 0.2
+        after = self._probe_error_rate()
+        recovered = after < before and after <= RECOVERY_ERROR_CEILING
         record.status = "executed"
         record.simulated = True
         record.executed_at = datetime.now(timezone.utc)
@@ -63,25 +72,34 @@ class MitigationService:
         record.error_rate_after = after
         record.recovered = recovered
         record.detail = (
-            f"Simulated {record.action} executed. Error rate {before} → {after}. "
+            f"Simulated {record.action} executed. Probe error rate {before} → {after}. "
+            f"Recovered={recovered} (requires after < before and after ≤ {RECOVERY_ERROR_CEILING}). "
             "Demo adapters only; production would plug into the same interface."
         )
         return record
+
+    def _shop_url(self) -> str:
+        return self.settings.victim_app_url.rstrip("/")
+
+    def _is_inline(self) -> bool:
+        return self._shop_url() == "inline"
 
     def _call(self, action: str) -> None:
         path = ACTIONS.get(action)
         if not path:
             raise SentinelAIError(f"Unknown mitigation action {action}.", code="unknown_action")
-        url = self.settings.victim_app_url.rstrip("/")
-        if url == "inline":
+        if self._is_inline():
             _inline_action(action)
             return
+        url = self._shop_url()
         try:
             response = httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.2))
-        except httpx.HTTPError:
-            # Fallback to inline state if separate shop server is not running
-            _inline_action(action)
-            return
+        except httpx.HTTPError as exc:
+            raise SentinelAIError(
+                f"Victim app is unreachable at {url}; mitigation was not executed.",
+                code="victim_unreachable",
+                status_code=503,
+            ) from exc
         if response.status_code >= 400:
             raise SentinelAIError(
                 f"Shop control API returned {response.status_code}.",
@@ -89,34 +107,58 @@ class MitigationService:
                 status_code=502,
             )
 
-    def _error_rate(self, probe: bool = False) -> float:
-        url = self.settings.victim_app_url.rstrip("/")
-        if url == "inline":
-            return self._inline_error_rate(probe)
+    def _error_rate(self) -> float:
+        if self._is_inline():
+            from victim_app import state
+
+            return float(state.snapshot()["error_rate"])
+        url = self._shop_url()
         try:
-            fast_timeout = httpx.Timeout(1.5, connect=0.2)
-            if probe:
-                httpx.post(f"{url}/checkout", json={"order_id": "probe"}, timeout=fast_timeout)
-            metrics = httpx.get(f"{url}/metrics", timeout=fast_timeout)
-            if metrics.status_code == 200:
-                return float(metrics.json().get("error_rate") or 0)
-        except httpx.HTTPError:
-            return self._inline_error_rate(probe)
-        return 0.0
+            metrics = httpx.get(f"{url}/metrics", timeout=httpx.Timeout(1.5, connect=0.2))
+        except httpx.HTTPError as exc:
+            raise SentinelAIError(
+                f"Victim app is unreachable at {url}; cannot read error rate.",
+                code="victim_unreachable",
+                status_code=503,
+            ) from exc
+        if metrics.status_code != 200:
+            raise SentinelAIError(
+                f"Shop metrics returned HTTP {metrics.status_code}.",
+                code="victim_unreachable",
+                status_code=503,
+            )
+        return float(metrics.json().get("error_rate") or 0)
 
-    @staticmethod
-    def _inline_error_rate(probe: bool = False) -> float:
-        from victim_app import state
-        from victim_app.shop import SAMPLE_CART, _run_checkout
+    def _probe_error_rate(self, samples: int = PROBE_SAMPLES) -> float:
+        failures = 0
+        for _ in range(samples):
+            if not self._checkout_ok():
+                failures += 1
+        return round(failures / samples, 4)
 
-        if probe:
+    def _checkout_ok(self) -> bool:
+        if self._is_inline():
+            from victim_app.shop import SAMPLE_CART, _run_checkout
+
             try:
                 _run_checkout(dict(SAMPLE_CART))
-                state.record_result(True)
+                return True
             except Exception:
-                state.record_result(False)
-        return float(state.snapshot()["error_rate"])
-
+                return False
+        url = self._shop_url()
+        try:
+            response = httpx.post(
+                f"{url}/checkout",
+                json=PROBE_CART,
+                timeout=httpx.Timeout(1.5, connect=0.2),
+            )
+        except httpx.HTTPError as exc:
+            raise SentinelAIError(
+                f"Victim app is unreachable at {url}; cannot probe checkout.",
+                code="victim_unreachable",
+                status_code=503,
+            ) from exc
+        return response.status_code < 400
 
 
 def _action_for(verdict: Verdict | None) -> str:

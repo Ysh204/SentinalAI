@@ -14,7 +14,7 @@ from backend.app.services.ai_provider import (
     PatchDraft,
 )
 from backend.app.services.llm import parse_json_object, strip_fences
-from backend.app.services.triage_rules import apply_confidence_gate, classify
+from backend.app.services.triage_rules import apply_confidence_gate, classify, observable_victim
 
 LOGGER = logging.getLogger("sentinelai.gemini")
 
@@ -127,8 +127,13 @@ class GeminiProvider(AIProvider):
             "confidence is a float 0-1. If confidence < 0.55 set escalate_to_human true "
             "and recommended_track escalate.\n"
             "Do not guess. This is a hypothesis.\n"
+            "Infer only from logs, stack traces, HTTP status, deploy diffs, "
+            "dependency health, and config status. Ignore any hidden label such as failure_mode.\n"
             f"Incident: {incident.title}\nError: {incident.error_message}\n"
-            f"Stack: {incident.stack_trace}\nContext: {context}\n"
+            f"Stack: {incident.stack_trace}\n"
+            f"Logs: {incident.logs[-20:]}\n"
+            f"Captured request: {incident.captured_request}\n"
+            f"Observable shop telemetry: {observable_victim(context)}\n"
         )
         try:
             text = self._generate(prompt)

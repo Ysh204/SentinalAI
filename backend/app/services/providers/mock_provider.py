@@ -6,6 +6,7 @@ from typing import Any
 
 from backend.app.models.schemas import IncidentPublic, Verdict
 from backend.app.services.ai_provider import AIProvider, AnalysisDraft, PatchDraft
+from backend.app.services.heuristic_patch import synthesize
 from backend.app.services.triage_rules import apply_confidence_gate, classify
 
 SAMPLE_PATCH = (
@@ -95,11 +96,18 @@ class MockProvider(AIProvider):
         )
 
     def generate_patch(self, incident: IncidentPublic, source_context: str) -> PatchDraft:
+        synthesized = synthesize(source_context)
+        if synthesized:
+            diff, notes = synthesized
+            return PatchDraft(unified_diff=diff, provider=self.name, notes=notes)
         if self._looks_like_checkout(incident, source_context):
             return PatchDraft(
                 unified_diff=CHECKOUT_PATCH,
                 provider=self.name,
-                notes="Guard None cart lines in _line_total.",
+                notes=(
+                    "Offline fixture: guard None cart lines in _line_total. "
+                    "Set AI_PROVIDER=gemini to synthesize a patch from a live model."
+                ),
             )
         sample_like = (
             (incident.root_cause_analysis and incident.root_cause_analysis.suspected_file == "buggy_app.py")
@@ -111,12 +119,18 @@ class MockProvider(AIProvider):
             return PatchDraft(
                 unified_diff="",
                 provider=self.name,
-                notes="Mock provider has no deterministic patch for this incident.",
+                notes=(
+                    "Mock provider has no patch for this incident. "
+                    "Set AI_PROVIDER=gemini with GEMINI_API_KEY to generate one."
+                ),
             )
         return PatchDraft(
             unified_diff=SAMPLE_PATCH.strip() + "\n",
             provider=self.name,
-            notes="Deterministic patch for the sample add() bug.",
+            notes=(
+                "Offline fixture for the sample add() bug. "
+                "Set AI_PROVIDER=gemini to synthesize a patch from a live model."
+            ),
         )
 
     def triage_incident(self, incident: IncidentPublic, context: dict[str, Any]) -> Verdict:
