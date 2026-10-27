@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -14,6 +12,7 @@ from backend.app.core.exceptions import SentinelAIError
 from backend.app.models.schemas import IncidentPublic, ValidationCheck, ValidationResults
 from backend.app.services.diff_utils import apply_unified_diff
 from backend.app.services.git_service import init_local_baseline
+from backend.app.services.sandbox import current_interpreter, run_sandboxed
 from backend.app.services.source_context import resolve_repository_path
 
 DISCLAIMER = (
@@ -50,10 +49,6 @@ class Validator:
                 # Git init is optional for validation; tests still run.
                 pass
             applied = apply_unified_diff(incident.proposed_patch, workspace)
-            if (workspace / "shop.py").exists():
-                from backend.app.services.replay_service import REPRO_TEST
-
-                (workspace / "test_repro_checkout.py").write_text(REPRO_TEST, encoding="utf-8")
             pytest_check = self._run_pytest(workspace)
             ruff_check = self._run_ruff(workspace)
             checks = [pytest_check, ruff_check]
@@ -86,7 +81,7 @@ class Validator:
     def _run_pytest(self, workspace: Path) -> ValidationCheck:
         return self._run_check(
             name="pytest",
-            command=[sys.executable, "-m", "pytest", "-q", "--tb=short"],
+            command=[current_interpreter(), "-m", "pytest", "-q", "--tb=short"],
             cwd=workspace,
             timeout=self.settings.pytest_timeout,
         )
@@ -94,7 +89,7 @@ class Validator:
     def _run_ruff(self, workspace: Path) -> ValidationCheck:
         return self._run_check(
             name="ruff",
-            command=[sys.executable, "-m", "ruff", "check", "."],
+            command=[current_interpreter(), "-m", "ruff", "check", "."],
             cwd=workspace,
             timeout=self.settings.ruff_timeout,
         )
@@ -107,18 +102,7 @@ class Validator:
         timeout: int,
     ) -> ValidationCheck:
         try:
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(cwd)
-            completed = subprocess.run(
-                command,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-                shell=False,
-                env=env,
-            )
+            completed = run_sandboxed(command, cwd=cwd, timeout=timeout)
         except FileNotFoundError:
             return ValidationCheck(name=name, status="skipped", detail=f"{name} is not installed.")
         except subprocess.TimeoutExpired as exc:

@@ -5,7 +5,7 @@ export const navLinks = [
   { href: '#blog', label: 'Blog' },
 ]
 
-export const logos = ['NEXORA', 'LUMORA', 'AETHER', 'NOVAFLOW', 'MIBR', 'HALCYON']
+export const logos = ['FastAPI', 'SQLite', 'pytest', 'Gemini optional', 'React', 'Streamlit']
 
 export const benefits = [
   {
@@ -37,24 +37,24 @@ export const services = [
 export const testimonials = [
   {
     quote:
-      'We needed a local loop for incident response: hypothesis, diff, tests, then a human gate. SentinelAI made that sequence explicit instead of a black box.',
-    name: 'Adam Radder',
-    role: 'CEO of MIBR',
-    img: 'https://i.pravatar.cc/160?img=12',
+      'Triage classifies from logs, stack traces, and shop telemetry. It does not read the demo injector’s failure_mode label.',
+    name: 'Observable triage',
+    role: 'No answer-key shortcuts',
+    img: '',
   },
   {
     quote:
-      'Validation in a temp workspace was the difference. We could watch pytest fail or pass without SentinelAI ever touching the original repository.',
-    name: 'Michael Harris',
-    role: 'COO of Novaflow',
-    img: 'https://i.pravatar.cc/160?img=33',
+      'Replay dispatches the captured checkout HTTP payload against an unpatched copy, then against a patched sandbox, and compares status codes.',
+    name: 'Captured-request replay',
+    role: 'Before vs after, real HTTP',
+    img: '',
   },
   {
     quote:
-      'Approve is a recorded decision, not a merge. That constraint is exactly what we wanted for a prototype that still treats code as untrusted.',
-    name: 'James Anderson',
-    role: 'Founder of Lumora',
-    img: 'https://i.pravatar.cc/160?img=52',
+      'Approve is a recorded decision, not a merge. Patches run in a scrubbed subprocess. The original repository is never written.',
+    name: 'Human gate',
+    role: 'Sandbox + sign-off',
+    img: '',
   },
 ]
 

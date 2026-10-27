@@ -50,7 +50,9 @@ def run_eval(request: Request) -> dict:
     run_id = uuid.uuid4().hex[:8]
     results = []
     for scenario in SCENARIOS:
-        state.inject(scenario.mode)
+        # Reset shop state. Do not inject the expected failure_mode — that was
+        # leaking the answer key into triage via context.victim.failure_mode.
+        state.inject("none")
         alert = scenario.alert.model_copy(update={"fingerprint": f"eval:{run_id}:{scenario.name}"})
         incident = container.incidents.ingest_alert(alert)
         incident = container.orchestrator.triage_incident(incident.id)

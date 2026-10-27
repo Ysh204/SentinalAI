@@ -58,6 +58,9 @@ def test_break_code_bug_then_patch_replay(client: TestClient) -> None:
     replay = replayed.json()["replay"]
     assert replay["before_ok"] is False
     assert replay["after_ok"] is True
+    assert replay["before_status"] >= 400
+    assert replay["after_status"] < 400
+    assert "HTTP" in replay["detail"]
     assert replayed.json()["status"] == "PATCH_VERIFIED"
 
 
@@ -87,7 +90,8 @@ def test_eval_classifies_known_scenarios(client: TestClient) -> None:
     assert result.status_code == 200
     body = result.json()
     assert body["total"] == 10
-    assert body["correct"] >= 8
+    assert body["correct"] == body["total"]
+    assert all(row["correct"] for row in body["rows"])
 
 
 def test_metrics_endpoint(client: TestClient) -> None:

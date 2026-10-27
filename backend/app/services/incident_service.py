@@ -76,7 +76,12 @@ class IncidentService:
             resolve_repository_path(repo_path, self.settings)
         fp = fingerprint_for(alert)
         existing = self.repository.find_open_by_fingerprint(fp)
-        captured = redact_payload(alert.captured_request) if alert.captured_request else None
+        captured_raw = dict(alert.captured_request or {})
+        if alert.status_code is not None:
+            captured_raw.setdefault("status_code", alert.status_code)
+        if alert.endpoint:
+            captured_raw.setdefault("path", alert.endpoint)
+        captured = redact_payload(captured_raw) if captured_raw else None
         if existing:
             existing.occurrence_count += 1
             existing.error_message = alert.error_message
