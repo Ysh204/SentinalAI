@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from backend.app.models.incident import RecommendedTrack, VerdictCategory
@@ -58,10 +59,11 @@ def classify(incident: IncidentPublic, context: dict[str, Any], provider: str) -
     except (TypeError, ValueError):
         memory_bytes = 0
 
-    if _looks_like_code_bug(text, incident):
+    is_bug, bug_conf = _looks_like_code_bug(text, incident)
+    if is_bug:
         return Verdict(
             category=VerdictCategory.CODE_BUG,
-            confidence=0.9,
+            confidence=bug_conf,
             evidence=_evidence(
                 "Application stack raised TypeError/AttributeError in shop code",
                 incident.stack_trace or incident.error_message,
@@ -71,10 +73,12 @@ def classify(incident: IncidentPublic, context: dict[str, Any], provider: str) -
             recommended_action="patch",
             provider=provider,
         )
-    if _looks_like_expired_key(text, status, key_status, payments):
+
+    is_key, key_conf = _looks_like_expired_key(text, status, key_status, payments)
+    if is_key:
         return Verdict(
             category=VerdictCategory.CONFIG,
-            confidence=0.88,
+            confidence=key_conf,
             evidence=_evidence(
                 "Payments rejected the configured credential (401/expired/invalid key)",
                 f"key_status={key_status or 'unknown'}",
@@ -84,10 +88,12 @@ def classify(incident: IncidentPublic, context: dict[str, Any], provider: str) -
             recommended_action="restore_config",
             provider=provider,
         )
-    if _looks_like_dependency_outage(text, status, payments):
+
+    is_dep, dep_conf = _looks_like_dependency_outage(text, status, payments)
+    if is_dep:
         return Verdict(
             category=VerdictCategory.DEPENDENCY_OUTAGE,
-            confidence=0.84,
+            confidence=dep_conf,
             evidence=_evidence(
                 "Checkout failed because the payments dependency is down or timing out",
                 f"dependency_health.payments={payments or 'unknown'}",
@@ -97,10 +103,12 @@ def classify(incident: IncidentPublic, context: dict[str, Any], provider: str) -
             recommended_action="fallback",
             provider=provider,
         )
-    if _looks_like_bad_deploy(text, victim):
+
+    is_deploy, deploy_conf = _looks_like_bad_deploy(text, victim)
+    if is_deploy:
         return Verdict(
             category=VerdictCategory.BAD_DEPLOY,
-            confidence=0.86,
+            confidence=deploy_conf,
             evidence=_evidence(
                 "Failure tracks a recent checkout deploy whose diff changes request handling",
                 str(victim.get("last_deploy_diff") or incident.error_message),
@@ -110,10 +118,12 @@ def classify(incident: IncidentPublic, context: dict[str, Any], provider: str) -
             recommended_action="rollback",
             provider=provider,
         )
-    if _looks_like_resource(text, memory_bytes, victim):
+
+    is_res, res_conf = _looks_like_resource(text, memory_bytes, victim)
+    if is_res:
         return Verdict(
             category=VerdictCategory.RESOURCE,
-            confidence=0.85,
+            confidence=res_conf,
             evidence=_evidence(
                 "Process is under memory/health pressure rather than a logic bug",
                 f"memory_bytes={memory_bytes}",
@@ -143,10 +153,11 @@ def apply_confidence_gate(verdict: Verdict) -> Verdict:
     return verdict
 
 
-def _looks_like_code_bug(text: str, incident: IncidentPublic) -> bool:
+def _looks_like_code_bug(text: str, incident: IncidentPublic) -> tuple[bool, float]:
     stack = (incident.stack_trace or "").lower()
     error = (incident.error_message or "").lower()
-    in_app = any(token in stack or token in text for token in ("shop.py", "_line_total", "victim_app", "buggy_app", "/checkout"))
+    in_app_tokens = ("shop.py", "_line_total", "victim_app", "buggy_app")
+    in_app = any(token in stack or token in text for token in in_app_tokens)
     type_error = any(
         token in error or token in stack or token in text
         for token in (
@@ -160,34 +171,50 @@ def _looks_like_code_bug(text: str, incident: IncidentPublic) -> bool:
             "'none'",
         )
     )
-    return type_error and (in_app or "traceback" in stack or "file \"" in stack or "_line_total" in text)
+    is_bug = type_error and (in_app or "traceback" in stack or 'file "' in stack or "_line_total" in text)
+    if not is_bug:
+        return False, 0.0
+    confidence = 0.88
+    if in_app and ("traceback" in stack or "_line_total" in text):
+        confidence = 0.92
+    elif not in_app:
+        confidence = 0.65
+    return True, confidence
 
 
-def _looks_like_expired_key(text: str, status: object, key_status: str, payments: str) -> bool:
+def _looks_like_expired_key(text: str, status: object, key_status: str, payments: str) -> tuple[bool, float]:
     if key_status in {"expired", "invalid"} or payments == "auth_failed":
-        return True
-    auth = any(
-        token in text
-        for token in (
+        return True, 0.90
+    try:
+        code = int(status) if status is not None else None
+    except (TypeError, ValueError):
+        code = None
+
+    has_auth_code = code == 401 or bool(re.search(r"\b401\b", text))
+    has_auth_kw = any(
+        kw in text
+        for kw in (
             "unauthorized",
             "invalid api key",
             "api key expired",
             "expired credential",
             "token expired",
             "key rotation",
-            "401",
         )
     )
-    try:
-        code = int(status) if status is not None else None
-    except (TypeError, ValueError):
-        code = None
-    return auth or code == 401
+    if has_auth_code and ("deadlock" in text or "lock wait" in text):
+        return False, 0.0
+
+    if has_auth_code and has_auth_kw:
+        return True, 0.88
+    if has_auth_kw or (has_auth_code and "order ord-" not in text):
+        return True, 0.80
+    return False, 0.0
 
 
-def _looks_like_dependency_outage(text: str, status: object, payments: str) -> bool:
+def _looks_like_dependency_outage(text: str, status: object, payments: str) -> tuple[bool, float]:
     if payments in {"down", "unavailable"}:
-        return True
+        return True, 0.90
     try:
         code = int(status) if status is not None else None
     except (TypeError, ValueError):
@@ -206,16 +233,20 @@ def _looks_like_dependency_outage(text: str, status: object, payments: str) -> b
             "unavailable",
         )
     )
-    return dependency and (
+    match = dependency and (
         code in {502, 503, 504}
         or "503" in text
         or "timeout" in text
         or "unavailable" in text
         or payments == "down"
     )
+    if match:
+        confidence = 0.88 if payments == "down" or code in {502, 503} else 0.82
+        return True, confidence
+    return False, 0.0
 
 
-def _looks_like_bad_deploy(text: str, victim: dict[str, Any]) -> bool:
+def _looks_like_bad_deploy(text: str, victim: dict[str, Any]) -> tuple[bool, float]:
     diff = str(victim.get("last_deploy_diff") or "").lower()
     deploy_signal = any(
         token in text or token in diff
@@ -229,27 +260,27 @@ def _looks_like_bad_deploy(text: str, victim: dict[str, Any]) -> bool:
         )
     )
     runtime = "runtimeerror" in text or "unhandled exception" in text
-    return bool(deploy_signal and (runtime or "500" in text or "error rate" in text))
+    match = bool(deploy_signal and (runtime or "500" in text or "error rate" in text))
+    if match:
+        confidence = 0.90 if diff and runtime else 0.85
+        return True, confidence
+    return False, 0.0
 
 
-def _looks_like_resource(text: str, memory_bytes: int, victim: dict[str, Any]) -> bool:
+def _looks_like_resource(text: str, memory_bytes: int, victim: dict[str, Any]) -> tuple[bool, float]:
     if memory_bytes > 2_000_000:
-        return True
+        return True, 0.92
     if victim.get("healthy") is False:
-        return True
-    return any(
-        token in text
-        for token in (
-            "memoryerror",
-            "heap exhausted",
-            "memory pressure",
-            "out of memory",
-            "oom",
-            "rss",
-            "not responding",
-            "unreachable",
+        return True, 0.85
+    has_res_signal = bool(
+        re.search(
+            r"\b(oom|rss|memoryerror|heap exhausted|memory pressure|out of memory)\b",
+            text,
         )
-    )
+    ) or any(phrase in text for phrase in ("not responding", "unreachable"))
+    if has_res_signal:
+        return True, 0.85
+    return False, 0.0
 
 
 def _evidence(primary: str, extra: str) -> list[str]:

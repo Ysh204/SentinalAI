@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
+from backend.app.api.deps import get_current_actor
 from backend.app.models.schemas import AlertCreate, BreakRequest, IncidentPublic
 
 router = APIRouter(tags=["alerts"])
 
 
 @router.post("/api/alerts", response_model=IncidentPublic, status_code=status.HTTP_201_CREATED)
-def ingest_alert(payload: AlertCreate, request: Request) -> IncidentPublic:
+def ingest_alert(
+    payload: AlertCreate,
+    request: Request,
+    actor: str = Depends(get_current_actor),
+) -> IncidentPublic:
     container = request.app.state.container
     incident = container.incidents.ingest_alert(payload)
     if incident.occurrence_count == 1:
@@ -15,12 +20,19 @@ def ingest_alert(payload: AlertCreate, request: Request) -> IncidentPublic:
 
 
 @router.post("/api/demo/break", response_model=IncidentPublic)
-def break_checkout(payload: BreakRequest, request: Request) -> IncidentPublic:
+def break_checkout(
+    payload: BreakRequest,
+    request: Request,
+    actor: str = Depends(get_current_actor),
+) -> IncidentPublic:
     return _break_and_ingest(request.app.state.container, payload.mode)
 
 
 @router.post("/api/demo/simulate", response_model=IncidentPublic)
-def simulate_incident(request: Request) -> IncidentPublic:
+def simulate_incident(
+    request: Request,
+    actor: str = Depends(get_current_actor),
+) -> IncidentPublic:
     return ingest_alert(
         AlertCreate(
             source="simulate",
@@ -39,6 +51,7 @@ def simulate_incident(request: Request) -> IncidentPublic:
             },
         ),
         request,
+        actor=actor,
     )
 
 

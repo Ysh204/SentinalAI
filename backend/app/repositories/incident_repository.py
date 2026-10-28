@@ -47,11 +47,11 @@ class IncidentRepository:
                     INSERT INTO incidents (
                         id, title, error_message, stack_trace, repository_path, status,
                         root_cause_analysis, proposed_patch, validation_results, approval,
-                        history, details, created_at, updated_at
+                        history, details, fingerprint, created_at, updated_at
                     ) VALUES (
                         :id, :title, :error_message, :stack_trace, :repository_path, :status,
                         :root_cause_analysis, :proposed_patch, :validation_results, :approval,
-                        :history, :details, :created_at, :updated_at
+                        :history, :details, :fingerprint, :created_at, :updated_at
                     )
                     """,
                     payload,
@@ -72,12 +72,13 @@ class IncidentRepository:
                 conn.close()
         return self._from_row(row) if row else None
 
-    def list(self) -> list[IncidentPublic]:
+    def list(self, limit: int = 100, offset: int = 0) -> list[IncidentPublic]:
         with self.db.lock:
             conn = self.db.connect()
             try:
                 rows = conn.execute(
-                    "SELECT * FROM incidents ORDER BY created_at DESC"
+                    "SELECT * FROM incidents ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
                 ).fetchall()
             finally:
                 conn.close()
@@ -92,13 +93,14 @@ class IncidentRepository:
             conn = self.db.connect()
             try:
                 rows = conn.execute(
-                    "SELECT * FROM incidents ORDER BY created_at DESC"
+                    "SELECT * FROM incidents WHERE fingerprint = ? ORDER BY created_at DESC",
+                    (fingerprint,),
                 ).fetchall()
             finally:
                 conn.close()
         for row in rows:
             incident = self._from_row(row)
-            if incident.fingerprint == fingerprint and incident.status.value not in closed:
+            if incident.status.value not in closed:
                 return incident
         return None
 
@@ -122,6 +124,7 @@ class IncidentRepository:
                         approval = :approval,
                         history = :history,
                         details = :details,
+                        fingerprint = :fingerprint,
                         updated_at = :updated_at
                     WHERE id = :id
                     """,
@@ -199,6 +202,7 @@ class IncidentRepository:
             "approval": incident.approval.model_dump_json() if incident.approval else None,
             "history": json.dumps([event.model_dump(mode="json") for event in incident.history]),
             "details": json.dumps(details),
+            "fingerprint": incident.fingerprint,
             "created_at": _dt_to_iso(incident.created_at),
             "updated_at": _dt_to_iso(incident.updated_at),
         }
@@ -212,6 +216,7 @@ class IncidentRepository:
         replay = details.get("replay")
         mitigation = details.get("mitigation")
         postmortem = details.get("postmortem")
+        fp = row["fingerprint"] if "fingerprint" in keys and row["fingerprint"] else details.get("fingerprint")
         return IncidentPublic(
             id=row["id"],
             title=row["title"],
@@ -221,7 +226,7 @@ class IncidentRepository:
             status=IncidentStatus(row["status"]),
             source=details.get("source") or "manual",
             service=details.get("service"),
-            fingerprint=details.get("fingerprint"),
+            fingerprint=fp,
             occurrence_count=int(details.get("occurrence_count") or 1),
             captured_request=details.get("captured_request"),
             logs=details.get("logs") or [],

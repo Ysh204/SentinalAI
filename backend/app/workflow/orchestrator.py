@@ -10,6 +10,7 @@ from backend.app.models.incident import (
     ANALYZE_FROM,
     APPROVE_FROM,
     GENERATE_PATCH_FROM,
+    IN_PROGRESS_STATUSES,
     MITIGATE_PROPOSE_FROM,
     REJECT_FROM,
     REPLAY_FROM,
@@ -53,6 +54,19 @@ class Orchestrator:
         self.replay_service = replay_service
         self.postmortems = postmortems
         self._locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
+
+    def recover_stuck_incidents(self) -> list[str]:
+        recovered = []
+        for inc in self.incidents.list():
+            if inc.status in IN_PROGRESS_STATUSES:
+                self.incidents.transition(
+                    inc,
+                    IncidentStatus.FAILED,
+                    "stuck_recovery",
+                    "Incident was in progress during shutdown or restart; reset to FAILED.",
+                )
+                recovered.append(inc.id)
+        return recovered
 
     def triage_incident(self, incident_id: str) -> IncidentPublic:
         with self._locks[incident_id]:
@@ -156,7 +170,16 @@ class Orchestrator:
             incident = self.incidents.transition(
                 incident, IncidentStatus.VALIDATING, "validate_started"
             )
-            results = self.validator.validate(incident)
+            try:
+                results = self.validator.validate(incident)
+            except Exception as exc:
+                self.incidents.transition(
+                    incident,
+                    IncidentStatus.VALIDATION_FAILED,
+                    "validate_failed",
+                    f"Validation failed with unexpected error: {exc}",
+                )
+                raise
             incident.validation_results = results
             if results.overall_passed:
                 return self.incidents.transition(
@@ -183,7 +206,16 @@ class Orchestrator:
             incident = self.incidents.transition(
                 incident, IncidentStatus.REPLAYING, "replay_started"
             )
-            result = self.replay_service.replay(incident)
+            try:
+                result = self.replay_service.replay(incident)
+            except Exception as exc:
+                self.incidents.transition(
+                    incident,
+                    IncidentStatus.VALIDATION_FAILED,
+                    "replay_failed",
+                    f"Replay failed with unexpected error: {exc}",
+                )
+                raise
             incident.replay = result
             if incident.validation_results:
                 incident.validation_results.checks.append(as_check(result))

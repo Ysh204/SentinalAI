@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -13,6 +14,7 @@ from backend.app.api.routes import alerts, approvals, events, health, incidents
 from backend.app.core.config import Settings, load_settings
 from backend.app.core.exceptions import SentinelAIError
 from backend.app.core.logging import configure_logging
+from backend.app.services.events import hub
 from backend.app.services.health_watcher import HealthWatcher
 
 
@@ -24,6 +26,12 @@ def create_app(settings: Settings | None = None, container: AppContainer | None 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.container = container
+        hub.set_loop(asyncio.get_running_loop())
+        # Recover any stale in-progress incidents from unclean shutdowns
+        try:
+            container.orchestrator.recover_stuck_incidents()
+        except Exception:
+            pass
         watcher: HealthWatcher | None = None
         if container.settings.health_watcher_enabled:
             watcher = HealthWatcher(container)
@@ -34,24 +42,13 @@ def create_app(settings: Settings | None = None, container: AppContainer | None 
 
     app = FastAPI(
         title="SentinelAI",
-        description="AI-assisted incident response for web services (local demo). Not production-hardened.",
+        description="AI-assisted incident response for web services (local demo).",
         version=settings.app_version,
         lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:8501",
-            "http://127.0.0.1:8501",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5174",
-            "http://localhost:5175",
-            "http://127.0.0.1:5175",
-            "http://localhost:4173",
-            "http://127.0.0.1:4173",
-        ],
+        allow_origins=list(settings.cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

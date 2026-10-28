@@ -1,6 +1,7 @@
 import type { HealthResponse, Incident, IncidentCreate, MetricsResponse } from './types'
 
 const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+const envApiKey = (import.meta.env.VITE_API_KEY as string | undefined)?.trim()
 
 function bases(): string[] {
   if (envBase) return [envBase.replace(/\/$/, '')]
@@ -19,7 +20,15 @@ class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: ApiError | undefined
-  const extra = { headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init }
+  const authHeaders: Record<string, string> = envApiKey ? { Authorization: `Bearer ${envApiKey}` } : {}
+  const extra = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  }
 
   for (const base of bases()) {
     let response: Response
@@ -34,8 +43,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     if (!response.ok) {
-      if (response.status >= 500 && !envBase) {
-        lastError = new ApiError('Cannot reach uvicorn on this address; trying the next.', response.status)
+      if ((response.status === 502 || response.status === 504) && !envBase) {
+        lastError = new ApiError('Gateway error on this address; trying the next.', response.status)
         continue
       }
       let detail = response.statusText
@@ -60,7 +69,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<HealthResponse>('/health'),
-  listIncidents: () => request<Incident[]>('/api/incidents'),
+  listIncidents: (limit = 100, offset = 0) =>
+    request<Incident[]>(`/api/incidents?limit=${limit}&offset=${offset}`),
   getIncident: (id: string) => request<Incident>(`/api/incidents/${id}`),
   createIncident: (payload: IncidentCreate) =>
     request<Incident>('/api/incidents', {

@@ -15,6 +15,11 @@ from backend.app.services.events import hub
 from backend.app.services.redact import redact_payload
 from backend.app.services.source_context import resolve_repository_path
 
+SERVICE_REPO_MAP = {
+    "checkout": "victim_app",
+    "sample": "sample_app",
+}
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -68,12 +73,12 @@ class IncidentService:
         return stored
 
     def ingest_alert(self, alert: AlertCreate) -> IncidentPublic:
-        repo_path = alert.repository_path or "victim_app"
-        try:
-            resolve_repository_path(repo_path, self.settings)
-        except SentinelAIError:
-            repo_path = "victim_app"
-            resolve_repository_path(repo_path, self.settings)
+        allowed = getattr(self.settings, "allowed_repositories", ("sample_app", "victim_app"))
+        if alert.repository_path and alert.repository_path in allowed:
+            repo_path = alert.repository_path
+        else:
+            repo_path = SERVICE_REPO_MAP.get(alert.service, "victim_app")
+        resolve_repository_path(repo_path, self.settings)
         fp = fingerprint_for(alert)
         existing = self.repository.find_open_by_fingerprint(fp)
         captured_raw = dict(alert.captured_request or {})

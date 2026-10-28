@@ -7,7 +7,8 @@ import re
 from pathlib import Path
 
 _LINE_TOTAL_RETURN = re.compile(
-    r"(^def _line_total\([^\n]+\n(?:[ \t]+[^\n]*\n)*?)([ \t]+)return int\(item\[\"price\"\]\) \* int\(item\[\"qty\"\]\)",
+    r"(^def _line_total\([^\n]+\n(?:[ \t]+[^\n]*\n)*?)"
+    r"([ \t]+)return int\(item\[\"price\"\]\) \* int\(item\[\"qty\"\]\)",
     re.MULTILINE,
 )
 _ADD_BUG = re.compile(r"^([ \t]*)return left - right[^\n]*$", re.MULTILINE)
