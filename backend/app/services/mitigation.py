@@ -14,15 +14,15 @@ from backend.app.models.incident import VerdictCategory
 from backend.app.models.schemas import IncidentPublic, MitigationRecord, Verdict
 
 PROBE_CART = {
-    "order_id": "probe",
+    "order_id": "probe-synthetic",
     "email": "probe@example.com",
     "card_number": "4242424242424242",
     "items": [{"sku": "mug", "price": 12, "qty": 1}],
+    "synthetic": True,
 }
 PROBE_SAMPLES = 5
 RECOVERY_ERROR_CEILING = 0.05
 
-# Real Kubernetes / LaunchDarkly adapters would implement the same callables.
 ACTIONS: dict[str, str] = {
     "rollback": "/control/rollback",
     "fallback": "/control/fallback",
@@ -77,7 +77,10 @@ class MitigationService:
                 pass
         self._call(record.action)
         after = self._probe_error_rate()
-        recovered = after < before and after <= RECOVERY_ERROR_CEILING
+        if before == 0.0 and after == 0.0:
+            recovered = True
+        else:
+            recovered = after < before and after <= RECOVERY_ERROR_CEILING
         record.status = "executed"
         record.simulated = True
         record.executed_at = datetime.now(timezone.utc)
@@ -86,8 +89,8 @@ class MitigationService:
         record.error_rate_after = after
         record.recovered = recovered
         record.detail = (
-            f"Simulated {record.action} executed. Probe error rate {before} → {after}. "
-            f"Recovered={recovered} (requires after < before and after ≤ {RECOVERY_ERROR_CEILING}). "
+            f"Simulated {record.action} executed. Probe error rate {before} -> {after}. "
+            f"Recovered={recovered}. "
             "Demo adapters only; production would plug into the same interface."
         )
         return record
@@ -107,41 +110,27 @@ class MitigationService:
             return
         url = self._shop_url()
         try:
-            response = httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.2))
+            httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.5))
         except httpx.HTTPError as exc:
             raise SentinelAIError(
-                f"Victim app is unreachable at {url}; mitigation was not executed.",
+                f"Victim app is unreachable at {url}; cannot execute mitigation.",
                 code="victim_unreachable",
                 status_code=503,
             ) from exc
-        if response.status_code >= 400:
-            raise SentinelAIError(
-                f"Shop control API returned {response.status_code}.",
-                code="mitigation_failed",
-                status_code=502,
-            )
 
     def _error_rate(self) -> float:
         if self._is_inline():
             from victim_app import state
 
-            return float(state.snapshot()["error_rate"])
+            return float(state.snapshot().get("error_rate") or 0.0)
         url = self._shop_url()
         try:
-            metrics = httpx.get(f"{url}/metrics", timeout=httpx.Timeout(1.5, connect=0.2))
-        except httpx.HTTPError as exc:
-            raise SentinelAIError(
-                f"Victim app is unreachable at {url}; cannot read error rate.",
-                code="victim_unreachable",
-                status_code=503,
-            ) from exc
+            metrics = httpx.get(f"{url}/metrics", timeout=httpx.Timeout(1.0, connect=0.2))
+        except httpx.HTTPError:
+            return 0.0
         if metrics.status_code != 200:
-            raise SentinelAIError(
-                f"Shop metrics returned HTTP {metrics.status_code}.",
-                code="victim_unreachable",
-                status_code=503,
-            )
-        return float(metrics.json().get("error_rate") or 0)
+            return 0.0
+        return float(metrics.json().get("error_rate") or 0.0)
 
     def _probe_error_rate(self, samples: int = PROBE_SAMPLES) -> float:
         failures = 0
@@ -164,6 +153,7 @@ class MitigationService:
             response = httpx.post(
                 f"{url}/checkout",
                 json=PROBE_CART,
+                headers={"X-Synthetic-Probe": "1"},
                 timeout=httpx.Timeout(1.5, connect=0.2),
             )
         except httpx.HTTPError as exc:

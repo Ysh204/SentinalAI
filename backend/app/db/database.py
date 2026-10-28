@@ -18,6 +18,11 @@ class Database:
         conn = sqlite3.connect(self.path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+        except sqlite3.OperationalError:
+            pass
         return conn
 
     def _init_schema(self) -> None:
@@ -39,12 +44,23 @@ class Database:
                         approval TEXT,
                         history TEXT NOT NULL DEFAULT '[]',
                         details TEXT NOT NULL DEFAULT '{}',
+                        fingerprint TEXT,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
                     )
                     """
                 )
                 self._ensure_column(conn, "incidents", "details", "TEXT NOT NULL DEFAULT '{}'")
+                self._ensure_column(conn, "incidents", "fingerprint", "TEXT")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incidents_fingerprint ON incidents(fingerprint)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incidents_created_at ON incidents(created_at)"
+                )
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS audit_log (

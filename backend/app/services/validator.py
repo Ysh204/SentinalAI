@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
@@ -103,22 +102,19 @@ class Validator:
     ) -> ValidationCheck:
         try:
             completed = run_sandboxed(command, cwd=cwd, timeout=timeout)
-        except FileNotFoundError:
-            return ValidationCheck(name=name, status="skipped", detail=f"{name} is not installed.")
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout or ""
-            stderr = exc.stderr or ""
-            if isinstance(stdout, bytes):
-                stdout = stdout.decode("utf-8", errors="replace")
-            if isinstance(stderr, bytes):
-                stderr = stderr.decode("utf-8", errors="replace")
+        except TimeoutError:
             return ValidationCheck(
                 name=name,
                 status="failed",
-                detail=f"{name} timed out after {timeout}s.",
-                exit_code=None,
-                stdout=stdout[-4000:],
-                stderr=stderr[-4000:],
+                detail=f"{name} timed out after {timeout} seconds.",
+                exit_code=-1,
+            )
+        except Exception as exc:
+            return ValidationCheck(
+                name=name,
+                status="failed",
+                detail=f"{name} process raised an error: {exc}",
+                exit_code=-1,
             )
 
         stdout = completed.stdout[-4000:]
@@ -144,10 +140,17 @@ class Validator:
 def _copy_tree(src: Path, dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for item in src.iterdir():
-        if item.name in {".git", "__pycache__", ".venv", ".pytest_cache", ".ruff_cache"}:
+        if item.name.startswith(".env"):
+            continue
+        if item.name in {".git", "__pycache__", ".venv", ".pytest_cache", ".ruff_cache", "data", "workspaces"}:
             continue
         target = dest / item.name
         if item.is_dir():
-            shutil.copytree(item, target, dirs_exist_ok=True)
+            shutil.copytree(
+                item,
+                target,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns(".env*", "*.pyc", "__pycache__"),
+            )
         else:
             shutil.copy2(item, target)

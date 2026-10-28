@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 
 from backend.app.models.schemas import IncidentCreate, IncidentPublic
 
@@ -11,8 +11,12 @@ def create_incident(payload: IncidentCreate, request: Request) -> IncidentPublic
 
 
 @router.get("", response_model=list[IncidentPublic])
-def list_incidents(request: Request) -> list[IncidentPublic]:
-    return request.app.state.container.incidents.list()
+def list_incidents(
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[IncidentPublic]:
+    return request.app.state.container.incidents.repository.list(limit=limit, offset=offset)
 
 
 @router.get("/{incident_id}", response_model=IncidentPublic)

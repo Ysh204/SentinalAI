@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from backend.app.core.exceptions import SentinelAIError
 
-HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
+HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+PROTECTED_NAMES = {
+    "conftest.py",
+    "pytest.ini",
+    "pyproject.toml",
+    "setup.cfg",
+    "setup.py",
+    "tox.ini",
+}
 
 
 @dataclass
@@ -22,7 +31,7 @@ def is_valid_unified_diff(diff: str) -> bool:
         return False
     has_old = bool(re.search(r"^---\s+\S+", diff, re.MULTILINE))
     has_new = bool(re.search(r"^\+\+\+\s+\S+", diff, re.MULTILINE))
-    has_hunk = bool(HUNK_RE.search(diff))
+    has_hunk = bool(re.search(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", diff, re.MULTILINE))
     return has_old and has_new and has_hunk
 
 
@@ -31,6 +40,21 @@ def _strip_prefix(path: str) -> str:
     if cleaned.startswith("a/") or cleaned.startswith("b/"):
         cleaned = cleaned[2:]
     return cleaned.replace("\\", "/")
+
+
+def is_protected_file(path_str: str) -> bool:
+    cleaned = _strip_prefix(path_str)
+    path = Path(cleaned)
+    name = path.name.lower()
+    if name in PROTECTED_NAMES:
+        return True
+    if name.startswith(".env"):
+        return True
+    if name.startswith("test_") or name.endswith("_test.py"):
+        return True
+    if any(part in {"tests", "test", ".git", ".github"} for part in path.parts):
+        return True
+    return False
 
 
 def _safe_join(workspace: Path, relative: str) -> Path:
@@ -43,8 +67,12 @@ def _safe_join(workspace: Path, relative: str) -> Path:
         raise SentinelAIError("Patch path traversal is not allowed.", code="unsafe_patch")
     target = (workspace / relative).resolve()
     workspace_resolved = workspace.resolve()
-    if not str(target).startswith(str(workspace_resolved)):
-        raise SentinelAIError("Patch would write outside the workspace.", code="unsafe_patch")
+    try:
+        if not target.is_relative_to(workspace_resolved) or target == workspace_resolved:
+            raise SentinelAIError("Patch would write outside the workspace.", code="unsafe_patch")
+    except AttributeError:
+        if not str(target).startswith(str(workspace_resolved) + os.sep):
+            raise SentinelAIError("Patch would write outside the workspace.", code="unsafe_patch") from None
     return target
 
 
@@ -53,14 +81,20 @@ def parse_file_patches(diff: str) -> list[FilePatch]:
     files: list[FilePatch] = []
     current_path: str | None = None
     current_hunks: list[str] = []
-    collecting = False
     hunk_lines: list[str] = []
 
+    remaining_old = 0
+    remaining_new = 0
+    in_hunk = False
+
     def flush_hunk() -> None:
-        nonlocal hunk_lines
+        nonlocal hunk_lines, in_hunk, remaining_old, remaining_new
         if hunk_lines:
             current_hunks.append("\n".join(hunk_lines))
             hunk_lines = []
+        in_hunk = False
+        remaining_old = 0
+        remaining_new = 0
 
     def flush_file() -> None:
         nonlocal current_path, current_hunks
@@ -70,26 +104,73 @@ def parse_file_patches(diff: str) -> list[FilePatch]:
         current_path = None
         current_hunks = []
 
-    for line in lines:
+    i = 0
+    num_lines = len(lines)
+    while i < num_lines:
+        line = lines[i]
+
+        # Check for file header (--- a/... followed by +++ b/...)
+        is_file_header = False
         if line.startswith("--- "):
+            if not in_hunk or (remaining_old <= 0 and remaining_new <= 0):
+                # Verify if next non-empty line starts with +++
+                for next_idx in range(i + 1, min(i + 4, num_lines)):
+                    if lines[next_idx].startswith("+++ "):
+                        is_file_header = True
+                        break
+
+        if is_file_header:
             flush_file()
-            collecting = True
+            # Advance to the +++ line
+            i += 1
+            while i < num_lines and not lines[i].startswith("+++ "):
+                i += 1
+            if i < num_lines:
+                raw = lines[i][4:].strip()
+                if "\t" in raw:
+                    raw = raw.split("\t", 1)[0]
+                current_path = _strip_prefix(raw)
+            i += 1
             continue
-        if line.startswith("+++ ") and collecting:
-            raw = line[4:].strip()
-            if "\t" in raw:
-                raw = raw.split("\t", 1)[0]
-            current_path = _strip_prefix(raw)
-            continue
-        if line.startswith("@@ ") and current_path:
+
+        hunk_match = HUNK_RE.match(line)
+        if hunk_match and current_path:
             flush_hunk()
+            in_hunk = True
+            old_count = int(hunk_match.group(2)) if hunk_match.group(2) is not None else 1
+            new_count = int(hunk_match.group(4)) if hunk_match.group(4) is not None else 1
+            remaining_old = old_count
+            remaining_new = new_count
             hunk_lines = [line]
+            i += 1
             continue
-        if hunk_lines:
-            if line.startswith(("+", "-", " ", "\\")):
+
+        if in_hunk:
+            if line.startswith("-"):
                 hunk_lines.append(line)
-            elif line == "":
+                remaining_old = max(0, remaining_old - 1)
+            elif line.startswith("+"):
                 hunk_lines.append(line)
+                remaining_new = max(0, remaining_new - 1)
+            elif line.startswith(" ") or line == "":
+                hunk_lines.append(line)
+                remaining_old = max(0, remaining_old - 1)
+                remaining_new = max(0, remaining_new - 1)
+            elif line.startswith("\\"):
+                hunk_lines.append(line)
+            else:
+                # Unexpected line outside hunk convention ends the hunk
+                flush_hunk()
+
+            if remaining_old == 0 and remaining_new == 0 and hunk_lines:
+                # Peek if next line is another hunk or file header
+                if i + 1 < num_lines and (lines[i + 1].startswith("@@ ") or lines[i + 1].startswith("--- ")):
+                    flush_hunk()
+            i += 1
+            continue
+
+        i += 1
+
     flush_file()
     if not files:
         raise SentinelAIError("Diff did not contain any usable file hunks.", code="invalid_diff")
@@ -103,23 +184,37 @@ def apply_unified_diff(diff: str, workspace: Path) -> list[str]:
 
     changed: list[str] = []
     for file_patch in parse_file_patches(diff):
+        if is_protected_file(file_patch.path):
+            raise SentinelAIError(
+                f"Modifying test or configuration files is prohibited: {file_patch.path}",
+                code="protected_file_modified",
+                status_code=403,
+            )
         target = _safe_join(workspace, file_patch.path)
         if not target.exists():
             raise SentinelAIError(
                 f"Patch targets missing file: {file_patch.path}",
                 code="patch_target_missing",
             )
-        original = target.read_text(encoding="utf-8").splitlines()
+        raw_bytes = target.read_bytes()
+        has_crlf = b"\r\n" in raw_bytes
+        has_trailing_nl = raw_bytes.endswith((b"\n", b"\r"))
+        original = raw_bytes.decode("utf-8").splitlines()
+
         updated = _apply_hunks(original, file_patch.hunks)
+
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("\n".join(updated) + ("\n" if updated else ""), encoding="utf-8")
+        newline = "\r\n" if has_crlf else "\n"
+        body = newline.join(updated)
+        if has_trailing_nl and updated:
+            body += newline
+        target.write_bytes(body.encode("utf-8"))
         changed.append(file_patch.path)
     return changed
 
 
 def _apply_hunks(original: list[str], hunks: list[str]) -> list[str]:
     result = list(original)
-    # Apply from bottom to top so earlier line numbers stay valid.
     parsed: list[tuple[int, list[str]]] = []
     for hunk in hunks:
         lines = hunk.split("\n")
@@ -129,6 +224,7 @@ def _apply_hunks(original: list[str], hunks: list[str]) -> list[str]:
             raise SentinelAIError("Malformed hunk header in patch.", code="invalid_diff")
         start = int(match.group(1))
         parsed.append((start, lines[1:]))
+    # Apply from bottom to top so earlier line numbers stay valid.
     parsed.sort(key=lambda item: item[0], reverse=True)
     for start, body in parsed:
         result = _apply_single_hunk(result, start, body)
@@ -136,16 +232,56 @@ def _apply_hunks(original: list[str], hunks: list[str]) -> list[str]:
 
 
 def _apply_single_hunk(original: list[str], start: int, body: list[str]) -> list[str]:
-    index = max(start - 1, 0)
-    output = original[:index]
-    cursor = index
     while body and body[-1] == "":
         body = body[:-1]
+
+    # Extract pattern of old lines to match against original
+    old_pattern: list[str] = []
     for raw in body:
-        if raw.startswith("\\"):  # "\ No newline at end of file"
+        if raw.startswith("\\"):
             continue
         if not raw:
-            # blank line inside hunk is context with a missing leading space
+            old_pattern.append("")
+        elif raw[0] in {" ", "-"}:
+            old_pattern.append(raw[1:])
+
+    # Try requested index first
+    target_idx = max(start - 1, 0)
+    matched_idx: int | None = None
+
+    if not old_pattern:
+        matched_idx = target_idx
+    else:
+        pat_len = len(old_pattern)
+        if target_idx + pat_len <= len(original) and original[target_idx : target_idx + pat_len] == old_pattern:
+            matched_idx = target_idx
+        else:
+            # Fuzz search within a ±25 line window or file-wide if small
+            search_window = range(
+                max(0, target_idx - 25),
+                min(len(original) - pat_len + 1, target_idx + 26),
+            )
+            candidates = [idx for idx in search_window if original[idx : idx + pat_len] == old_pattern]
+            if len(candidates) == 1:
+                matched_idx = candidates[0]
+            elif not candidates:
+                # File wide search if unique
+                all_matches = [
+                    idx for idx in range(len(original) - pat_len + 1) if original[idx : idx + pat_len] == old_pattern
+                ]
+                if len(all_matches) == 1:
+                    matched_idx = all_matches[0]
+
+    if matched_idx is None:
+        matched_idx = target_idx
+
+    output = original[:matched_idx]
+    cursor = matched_idx
+
+    for raw in body:
+        if raw.startswith("\\"):
+            continue
+        if not raw:
             if cursor >= len(original) or original[cursor] != "":
                 raise SentinelAIError("Patch context did not match the source file.", code="patch_mismatch")
             output.append("")
@@ -165,5 +301,6 @@ def _apply_single_hunk(original: list[str], start: int, body: list[str]) -> list
             output.append(content)
         else:
             raise SentinelAIError("Unexpected hunk line in patch.", code="invalid_diff")
+
     output.extend(original[cursor:])
     return output

@@ -11,6 +11,17 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(PROJECT_ROOT / ".env")
 
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:8501",
+    "http://127.0.0.1:8501",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+)
+
 
 def _env(name: str, default: str | None = None) -> str | None:
     value = os.getenv(name, default)
@@ -47,6 +58,10 @@ class Settings:
     health_watcher_enabled: bool
     health_check_interval: float
     health_fail_threshold: int
+    api_key: str | None = None
+    auth_enabled: bool = False
+    cors_origins: tuple[str, ...] = DEFAULT_CORS_ORIGINS
+    allowed_repositories: tuple[str, ...] = ("sample_app", "victim_app")
 
     @property
     def gemini_configured(self) -> bool:
@@ -56,6 +71,15 @@ class Settings:
 def load_settings() -> Settings:
     database_path = _as_path(_env("DATABASE_PATH", "data/sentinelai.db") or "data/sentinelai.db")
     workspace_root = _as_path(_env("WORKSPACE_ROOT", "data/workspaces") or "data/workspaces")
+    api_key = _env("SENTINEL_API_KEY") or _env("API_KEY")
+    auth_env = _env("AUTH_ENABLED")
+    auth_enabled = (auth_env.lower() in {"1", "true", "yes"}) if auth_env else bool(api_key)
+    cors_raw = _env("CORS_ORIGINS")
+    cors_origins = (
+        tuple(origin.strip() for origin in cors_raw.split(",") if origin.strip())
+        if cors_raw
+        else DEFAULT_CORS_ORIGINS
+    )
     return Settings(
         app_name="SentinelAI",
         app_version="0.1.0",
@@ -76,6 +100,10 @@ def load_settings() -> Settings:
         in {"1", "true", "yes"},
         health_check_interval=float(_env("HEALTH_CHECK_INTERVAL", "10") or "10"),
         health_fail_threshold=int(_env("HEALTH_FAIL_THRESHOLD", "3") or "3"),
+        api_key=api_key,
+        auth_enabled=auth_enabled,
+        cors_origins=cors_origins,
+        allowed_repositories=("sample_app", "victim_app"),
     )
 
 

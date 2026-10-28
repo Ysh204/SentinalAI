@@ -17,4 +17,4 @@ exclude = [".venv", "data", "workspaces", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
-ignore = ["UP017"]
+ignore = ["UP017", "B008"]

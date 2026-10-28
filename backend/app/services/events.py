@@ -12,13 +12,19 @@ class EventHub:
     def __init__(self) -> None:
         self._subscribers: list[asyncio.Queue[str]] = []
         self._lock = asyncio.Lock()
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
 
     def publish_sync(self, payload: dict[str, Any]) -> None:
         message = json.dumps(payload, default=str)
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
         loop.call_soon_threadsafe(self._broadcast, message)
 
     def _broadcast(self, message: str) -> None:
