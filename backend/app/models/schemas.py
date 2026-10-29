@@ -18,17 +18,17 @@ class IncidentCreate(BaseModel):
 
 
 class AlertCreate(BaseModel):
-    source: str = "webhook"
-    service: str = "checkout"
-    title: str | None = None
-    error_message: str = Field(..., min_length=1)
-    stack_trace: str = ""
-    endpoint: str | None = None
+    source: str = Field("webhook", max_length=100)
+    service: str = Field("checkout", max_length=100)
+    title: str | None = Field(None, max_length=500)
+    error_message: str = Field(..., min_length=1, max_length=10000)
+    stack_trace: str = Field("", max_length=50000)
+    endpoint: str | None = Field(None, max_length=500)
     status_code: int | None = None
     captured_request: dict[str, Any] | None = None
-    logs: list[str] = Field(default_factory=list)
-    fingerprint: str | None = None
-    repository_path: str | None = "victim_app"
+    logs: list[str] = Field(default_factory=list, max_length=200)
+    fingerprint: str | None = Field(None, max_length=128)
+    repository_path: str | None = Field("victim_app", max_length=200)
     occurred_at: str | None = None
 
 
@@ -159,6 +159,7 @@ class IncidentPublic(BaseModel):
     postmortem: Postmortem | None = None
     approval: ApprovalRecord | None = None
     history: list[HistoryEvent] = Field(default_factory=list)
+    version: int = 1
     created_at: datetime
     updated_at: datetime
 

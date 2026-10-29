@@ -3,7 +3,11 @@ from fastapi import APIRouter, Depends, Request
 from backend.app.api.deps import get_current_actor
 from backend.app.models.schemas import ApproveRequest, IncidentPublic, RejectRequest
 
-router = APIRouter(prefix="/api/incidents", tags=["approvals"])
+router = APIRouter(
+    prefix="/api/incidents",
+    tags=["approvals"],
+    dependencies=[Depends(get_current_actor)],
+)
 
 
 @router.post("/{incident_id}/approve", response_model=IncidentPublic)

@@ -10,6 +10,7 @@ import sys
 import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from backend.app.core.exceptions import SentinelAIError
 
@@ -152,6 +153,33 @@ def _run_docker(command: Sequence[str], *, cwd: Path, timeout: int, image: str) 
     return completed
 
 
+def _kill_process_tree(proc: subprocess.Popen) -> None:
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                check=False,
+                timeout=5,
+            )
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    else:
+        import signal
+
+        try:
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+
 def run_sandboxed(
     command: Sequence[str],
     *,
@@ -169,19 +197,46 @@ def run_sandboxed(
     env = sandbox_env(cwd)
     if extra_env:
         env.update(extra_env)
-    kwargs: dict = {
-        "cwd": cwd,
-        "capture_output": True,
-        "text": True,
-        "timeout": timeout,
-        "check": False,
-        "shell": False,
-        "env": env,
-    }
-    preexec = posix_rlimits()
-    if preexec is not None:
-        kwargs["preexec_fn"] = preexec
-    return subprocess.run(list(command), **kwargs)
+
+    extra_flags: dict[str, Any] = {}
+    if os.name == "nt":
+        extra_flags["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        extra_flags["start_new_session"] = True
+
+    proc = subprocess.Popen(
+        list(command),
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        **extra_flags,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _kill_process_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=2)
+        except Exception:
+            out, err = "", ""
+        raise subprocess.TimeoutExpired(
+            cmd=list(command),
+            timeout=timeout,
+            output=out or exc.stdout or "",
+            stderr=err or exc.stderr or "",
+        ) from None
+    except Exception:
+        _kill_process_tree(proc)
+        raise
+
+    return subprocess.CompletedProcess(
+        args=list(command),
+        returncode=proc.returncode if proc.returncode is not None else -1,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 def current_interpreter() -> str:

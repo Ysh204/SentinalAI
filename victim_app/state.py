@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 _lock = threading.Lock()
@@ -15,7 +15,7 @@ _STATE: dict[str, Any] = {
     "healthy": True,
     "deploy_version": "good-1.0.0",
     "previous_version": "good-1.0.0",
-    "last_deploy_at": datetime.now(timezone.utc).isoformat(),
+    "last_deploy_at": datetime.now(UTC).isoformat(),
     "last_deploy_diff": "baseline checkout handler",
     "payments_api_key": "live-ok-key",
     "memory_sink": [],
@@ -78,7 +78,7 @@ def record_result(ok: bool) -> None:
 
 def append_log(line: str) -> None:
     with _lock:
-        _STATE["logs"].append(f"{datetime.now(timezone.utc).isoformat()} {line}")
+        _STATE["logs"].append(f"{datetime.now(UTC).isoformat()} {line}")
         if len(_STATE["logs"]) > 400:
             _STATE["logs"] = _STATE["logs"][-200:]
 
@@ -97,7 +97,7 @@ def reset_memory() -> None:
 
 
 def inject(mode: str) -> dict[str, Any]:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _lock:
         _STATE["failure_mode"] = mode
         _STATE["healthy"] = True
@@ -132,7 +132,7 @@ def rollback() -> dict[str, Any]:
         _STATE["deploy_version"] = _STATE["previous_version"] or "good-1.0.0"
         _STATE["failure_mode"] = "none"
         _STATE["last_deploy_diff"] = "rolled back to previous known-good deploy"
-        _STATE["last_deploy_at"] = datetime.now(timezone.utc).isoformat()
+        _STATE["last_deploy_at"] = datetime.now(UTC).isoformat()
         _STATE["healthy"] = True
     append_log("control: rollback executed")
     return snapshot()

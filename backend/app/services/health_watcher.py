@@ -51,7 +51,7 @@ class HealthWatcher:
                 continue
             LOGGER.warning("Shop health failed %s times; opening incident", self._fails)
             try:
-                self.container.incidents.ingest_alert(
+                incident = self.container.incidents.ingest_alert(
                     AlertCreate(
                         source="health_check",
                         service="checkout",
@@ -62,8 +62,11 @@ class HealthWatcher:
                         status_code=503,
                         logs=["health checker: consecutive failures"],
                         fingerprint="health:checkout:down",
-                    )
+                    ),
+                    actor="health_check",
                 )
+                if incident.occurrence_count == 1:
+                    self.container.orchestrator.triage_incident(incident.id)
             except Exception:
                 LOGGER.exception("Failed to ingest health incident")
             self._fails = 0

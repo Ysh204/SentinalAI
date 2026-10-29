@@ -52,7 +52,7 @@ def is_protected_file(path_str: str) -> bool:
         return True
     if name.startswith("test_") or name.endswith("_test.py"):
         return True
-    if any(part in {"tests", "test", ".git", ".github"} for part in path.parts):
+    if any(part.lower() in {"tests", "test", ".git", ".github"} for part in path.parts):
         return True
     return False
 
@@ -192,14 +192,23 @@ def apply_unified_diff(diff: str, workspace: Path) -> list[str]:
             )
         target = _safe_join(workspace, file_patch.path)
         if not target.exists():
-            raise SentinelAIError(
-                f"Patch targets missing file: {file_patch.path}",
-                code="patch_target_missing",
+            has_deletions = any(
+                any(line.startswith("-") for line in hunk.split("\n")[1:])
+                for hunk in file_patch.hunks
             )
-        raw_bytes = target.read_bytes()
-        has_crlf = b"\r\n" in raw_bytes
-        has_trailing_nl = raw_bytes.endswith((b"\n", b"\r"))
-        original = raw_bytes.decode("utf-8").splitlines()
+            if has_deletions:
+                raise SentinelAIError(
+                    f"Patch targets missing file: {file_patch.path}",
+                    code="patch_target_missing",
+                )
+            original = []
+            has_crlf = False
+            has_trailing_nl = True
+        else:
+            raw_bytes = target.read_bytes()
+            has_crlf = b"\r\n" in raw_bytes
+            has_trailing_nl = raw_bytes.endswith((b"\n", b"\r"))
+            original = raw_bytes.decode("utf-8").splitlines()
 
         updated = _apply_hunks(original, file_patch.hunks)
 

@@ -18,7 +18,7 @@ _SECRET_KEYS = {
     "ssn",
     "credit_card",
 }
-_EMAIL = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
+_EMAIL = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 _CARD = re.compile(r"\b(?:\d[ -]*?){13,16}\b")
 
 
