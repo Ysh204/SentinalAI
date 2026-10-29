@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass
 
-from fastapi import Header, Request, Security, status
+from fastapi import Header, Query, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.app.core.config import Settings, load_settings
@@ -27,47 +28,70 @@ from backend.app.workflow.orchestrator import Orchestrator
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_actor(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Security(security),
-    x_api_key: str | None = Header(None, alias="X-API-Key"),
-) -> str:
-    container: AppContainer = request.app.state.container
-    settings = container.settings
+def _match_token(token: str, settings: Settings) -> str | None:
+    """Constant-time lookup. Every configured key is compared so timing does not reveal which matched."""
+    matched: str | None = None
+    candidate = token.encode("utf-8")
+    for expected, actor in settings.credentials:
+        if hmac.compare_digest(candidate, expected.encode("utf-8")):
+            matched = actor
+    return matched
 
+
+def _authenticate(request: Request, token: str | None) -> str:
+    settings: Settings = request.app.state.container.settings
     if not settings.auth_enabled:
         return "anonymous"
-
-    expected_key = settings.api_key
-    if not expected_key:
-        return "anonymous"
-
-    token: str | None = None
-    if credentials and credentials.credentials:
-        token = credentials.credentials
-    elif x_api_key:
-        token = x_api_key
-
+    if not settings.credentials:
+        # Fail closed: auth was requested but nothing can ever satisfy it.
+        raise SentinelAIError(
+            "Authentication is enabled but no API keys are configured.",
+            code="auth_misconfigured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
     if not token:
         raise SentinelAIError(
             "Authentication required. Provide Authorization: Bearer <key> or X-API-Key header.",
             code="unauthorized",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-
-    key_part = token
-    actor_part = "authenticated-user"
-    if ":" in token:
-        key_part, actor_part = token.split(":", 1)
-
-    if key_part != expected_key:
+    actor = _match_token(token, settings)
+    if actor is None:
         raise SentinelAIError(
             "Invalid API credentials.",
             code="forbidden",
             status_code=status.HTTP_403_FORBIDDEN,
         )
+    return actor
 
-    return actor_part
+
+def get_current_actor(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(security),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> str:
+    """Identity comes from the key the server issued, never from anything the client claims."""
+    token = credentials.credentials if credentials and credentials.credentials else x_api_key
+    return _authenticate(request, token)
+
+
+def get_stream_actor(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(security),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    access_token: str | None = Query(None),
+) -> str:
+    """Like get_current_actor, but also accepts ?access_token= because browser EventSource cannot send headers.
+
+    Query tokens can end up in proxy/access logs: prefer a dedicated read-only key for the stream.
+    """
+    token = credentials.credentials if credentials and credentials.credentials else (x_api_key or access_token)
+    return _authenticate(request, token)
+
+
+def require_demo_mode(request: Request) -> None:
+    if not request.app.state.container.settings.demo_mode:
+        raise SentinelAIError("Demo endpoints are disabled (DEMO_MODE=false).", code="not_found", status_code=404)
 
 
 @dataclass

@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
 import subprocess
 import sys
+import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
+from backend.app.core.exceptions import SentinelAIError
+
+LOGGER = logging.getLogger("sentinelai.sandbox")
+_WARNED_UNISOLATED = False
 
 # Host secrets (API keys, cloud creds) must never enter the sandbox.
 _ALLOWED_ENV = (
@@ -82,13 +90,82 @@ def posix_rlimits():
     return _limit
 
 
+def docker_command(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    image: str,
+    name: str,
+) -> list[str]:
+    """Build a `docker run` invocation with no network, a read-only root fs and capped resources."""
+    args = [
+        "docker", "run", "--rm", "--name", name,
+        "--network", "none",
+        "--read-only",
+        "--tmpfs", "/tmp:rw,nosuid,size=64m",  # noqa: S108 - container-local scratch space
+        "--memory", "512m", "--memory-swap", "512m", "--cpus", "1", "--pids-limit", "128",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+    ]
+    if hasattr(os, "getuid"):
+        # Same uid as the host owner so the bind-mounted workspace is readable; still unprivileged.
+        args += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    args += [
+        "-e", "PYTHONDONTWRITEBYTECODE=1",
+        "-e", "PYTHONPATH=/work",
+        "-e", "PYTHONSAFEPATH=1",
+        "-e", "PYTHONUTF8=1",
+        "-e", "HOME=/tmp",
+        "-e", "RUFF_CACHE_DIR=/tmp/ruff",
+        "-e", "PYTEST_ADDOPTS=-p no:cacheprovider",
+        "-v", f"{cwd}:/work:rw",
+        "-w", "/work",
+        image,
+    ]
+    inner = ["python" if part == sys.executable else part for part in command]
+    return args + inner
+
+
+def _run_docker(command: Sequence[str], *, cwd: Path, timeout: int, image: str) -> subprocess.CompletedProcess[str]:
+    if shutil.which("docker") is None:
+        raise SentinelAIError(
+            "SANDBOX_MODE=docker but the docker CLI was not found. Refusing to run untrusted code on the host.",
+            code="sandbox_unavailable",
+            status_code=503,
+        )
+    name = f"sentinel-{uuid.uuid4().hex[:12]}"
+    argv = docker_command(command, cwd=cwd, image=image, name=name)
+    try:
+        completed = subprocess.run(  # noqa: S603
+            argv, capture_output=True, text=True, timeout=timeout, check=False, shell=False
+        )
+    except subprocess.TimeoutExpired:
+        # Killing the CLI does not stop the container, so stop it explicitly.
+        subprocess.run(["docker", "kill", name], capture_output=True, check=False, timeout=15)  # noqa: S603, S607
+        raise
+    if completed.returncode == 125:  # docker itself failed (image missing, daemon down, bad flag)
+        raise SentinelAIError(
+            f"Docker could not start the sandbox: {(completed.stderr or '').strip()[-300:]}",
+            code="sandbox_unavailable",
+            status_code=503,
+        )
+    return completed
+
+
 def run_sandboxed(
     command: Sequence[str],
     *,
     cwd: Path,
     timeout: int,
     extra_env: Mapping[str, str] | None = None,
+    settings=None,
 ) -> subprocess.CompletedProcess[str]:
+    global _WARNED_UNISOLATED
+    if settings is not None and getattr(settings, "sandbox_mode", "subprocess") == "docker":
+        return _run_docker(command, cwd=cwd, timeout=timeout, image=settings.sandbox_image)
+    if not _WARNED_UNISOLATED:
+        _WARNED_UNISOLATED = True
+        LOGGER.warning("Running patch tests in a plain subprocess (no network or filesystem isolation).")
     env = sandbox_env(cwd)
     if extra_env:
         env.update(extra_env)

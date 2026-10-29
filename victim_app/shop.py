@@ -45,16 +45,16 @@ def _line_total(item: dict[str, Any] | None) -> int:
     return int(item["price"]) * int(item["qty"])
 
 
-def _charge_payments(amount: int) -> dict[str, Any]:
+def _charge_payments(amount: int, dry_run: bool = False) -> dict[str, Any]:
     mode = state.get("failure_mode")
     key = str(state.get("payments_api_key"))
     if mode == "expired_key" or key.startswith("expired"):
         raise HTTPException(status_code=401, detail="Payments API key expired")
     if mode == "payments_outage":
         if state.get("fallback_enabled"):
-            return {"processor": "fallback-cod", "status": "accepted", "amount": amount}
+            return {"processor": "fallback-cod", "status": "dry_run" if dry_run else "accepted", "amount": amount}
         raise HTTPException(status_code=503, detail="Payments API unavailable")
-    return {"processor": "payments", "status": "charged", "amount": amount}
+    return {"processor": "payments", "status": "dry_run" if dry_run else "charged", "amount": amount}
 
 
 @router.get("/health")
@@ -147,6 +147,15 @@ def control_restore_config() -> dict[str, Any]:
 @router.post("/checkout")
 async def checkout(request: Request, body: CheckoutBody | None = None) -> dict[str, Any]:
     payload = body.model_dump() if body else SAMPLE_CART
+    if request.headers.get("x-synthetic-probe") == "1":
+        # Health probe from SentinelAI: exercise the real code path and failure modes,
+        # but never charge, log, count toward metrics, or raise an incident.
+        try:
+            return _run_checkout(payload, dry_run=True)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
     state.append_log(f"checkout attempt order={payload.get('order_id')}")
     captured = {"method": "POST", "path": "/checkout", "body": redact(payload)}
     try:
@@ -181,12 +190,12 @@ async def checkout(request: Request, body: CheckoutBody | None = None) -> dict[s
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-def _run_checkout(payload: dict[str, Any]) -> dict[str, Any]:
+def _run_checkout(payload: dict[str, Any], dry_run: bool = False) -> dict[str, Any]:
     if not state.get("feature_checkout_enabled"):
         raise HTTPException(status_code=503, detail="Checkout feature flag disabled")
     mode = state.get("failure_mode")
     if mode == "memory_leak":
-        used = state.leak_memory()
+        used = state.snapshot()["memory_bytes"] if dry_run else state.leak_memory()
         state.append_log(f"memory_sink_bytes={used}")
         if used > 2_000_000:
             raise HTTPException(status_code=500, detail="MemoryError: checkout heap exhausted")
@@ -198,5 +207,5 @@ def _run_checkout(payload: dict[str, Any]) -> dict[str, Any]:
     total = 0
     for item in items:
         total += _line_total(item)
-    charge = _charge_payments(total)
+    charge = _charge_payments(total, dry_run=dry_run)
     return {"ok": True, "total": total, "charge": charge, "order_id": payload.get("order_id")}

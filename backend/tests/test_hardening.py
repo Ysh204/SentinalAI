@@ -288,6 +288,6 @@ def test_authentication_enforcement_and_actor_derivation(tmp_settings) -> None:
     resp = auth_client.post(
         "/api/alerts",
         json={"error_message": "test", "service": "checkout"},
-        headers={"Authorization": "Bearer secret-key:ops-lead"},
+        headers={"Authorization": "Bearer secret-key"},
     )
     assert resp.status_code == 201

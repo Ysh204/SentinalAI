@@ -98,33 +98,45 @@ export default function Landing() {
       const width = round(heroRect.width)
       const height = round(heroRect.height)
       const centerX = round(ctaRect.left + ctaRect.width / 2 - heroRect.left)
-      const ctaLeft = round(ctaRect.left - heroRect.left)
-      const ctaRight = round(ctaRect.right - heroRect.left)
       const centerY = round(ctaRect.top + ctaRect.height / 2 - heroRect.top)
       const startY = round(
         Math.max(40, Math.min(anchorRect.bottom - heroRect.top + 20, centerY - 44)),
       )
-      const availableCurveWidth = Math.max(
-        12,
-        Math.min(ctaLeft - 13, width - ctaRight - 13),
-      )
-      const curveWidth = Math.min(
-        width * 0.2,
-        Math.max(85, width * 0.115),
-        availableCurveWidth,
-      )
-      const leftTurn = round(ctaLeft - curveWidth)
-      const rightTurn = round(ctaRight + curveWidth)
-      const handle = round(curveWidth * 0.55)
+      // Slope strictly parallel to the black background facet:
+      // Uses a true straight diagonal line L (matching the black polygon edge angle)
+      // with sleek rounded corner fillets Q at the top and bottom.
       const edge = 9
-      const leftPath = `M ${edge} ${startY} H ${leftTurn} C ${round(
-        leftTurn + handle,
-      )} ${startY}, ${round(ctaLeft - handle)} ${centerY}, ${ctaLeft} ${centerY} H ${centerX}`
+      const deltaY = centerY - startY
+      // Black slope ratio: dy/dx ≈ 1.08 (arctan ~47 degrees)
+      const slopeRatio = 1.08
+      const theta = Math.atan(slopeRatio)
+      const ux = Math.cos(theta)
+      const uy = Math.sin(theta)
+      const r = 24 // corner fillet radius
+
+      const rampDx = round(Math.max(170, deltaY / slopeRatio))
+      const x2 = round(Math.max(edge + 120, centerX - 170))
+      const x1 = round(x2 - rampDx)
+
+      const rx2 = round(Math.min(width - edge - 120, centerX + 170))
+      const rx1 = round(rx2 + rampDx)
+
+      // Left path: horizontal -> round fillet -> straight diagonal parallel to black slope -> round fillet -> horizontal into button
+      const c1EndX = round(x1 + r * ux)
+      const c1EndY = round(startY + r * uy)
+      const c2StartX = round(x2 - r * ux)
+      const c2StartY = round(centerY - r * uy)
+
+      // Right path: symmetrical
+      const rc1EndX = round(rx1 - r * ux)
+      const rc1EndY = round(startY + r * uy)
+      const rc2StartX = round(rx2 + r * ux)
+      const rc2StartY = round(centerY - r * uy)
+
+      const leftPath = `M ${edge} ${startY} H ${x1 - r} Q ${x1} ${startY}, ${c1EndX} ${c1EndY} L ${c2StartX} ${c2StartY} Q ${x2} ${centerY}, ${x2 + r} ${centerY} H ${centerX}`
       const rightPath = `M ${round(
         width - edge,
-      )} ${startY} H ${rightTurn} C ${round(rightTurn - handle)} ${startY}, ${round(
-        ctaRight + handle,
-      )} ${centerY}, ${ctaRight} ${centerY} H ${centerX}`
+      )} ${startY} H ${rx1 + r} Q ${rx1} ${startY}, ${rc1EndX} ${rc1EndY} L ${rc2StartX} ${rc2StartY} Q ${rx2} ${centerY}, ${rx2 - r} ${centerY} H ${centerX}`
 
       setHeroRoute((previous) => {
         if (

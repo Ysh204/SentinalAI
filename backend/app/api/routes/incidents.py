@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
+from backend.app.api.deps import get_current_actor
 from backend.app.models.schemas import IncidentCreate, IncidentPublic
 
-router = APIRouter(prefix="/api/incidents", tags=["incidents"])
+router = APIRouter(prefix="/api/incidents", tags=["incidents"], dependencies=[Depends(get_current_actor)])
 
 
 @router.post("", response_model=IncidentPublic, status_code=status.HTTP_201_CREATED)
@@ -16,7 +17,7 @@ def list_incidents(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[IncidentPublic]:
-    return request.app.state.container.incidents.repository.list(limit=limit, offset=offset)
+    return request.app.state.container.incidents.list(limit=limit, offset=offset)
 
 
 @router.get("/{incident_id}", response_model=IncidentPublic)

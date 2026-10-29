@@ -125,10 +125,13 @@ class ReplayService:
             }
             spec_path = workspace / "_replay_request.json"
             spec_path.write_text(json.dumps(spec), encoding="utf-8")
+            worker_path = workspace / "_replay_worker.py"
+            shutil.copy2(WORKER, worker_path)  # inside the workspace so a container can see it
             completed = run_sandboxed(
-                [current_interpreter(), str(WORKER), str(spec_path)],
+                [current_interpreter(), worker_path.name, spec_path.name],
                 cwd=workspace,
                 timeout=self.settings.pytest_timeout,
+                settings=self.settings,
             )
             stdout = (completed.stdout or "").strip()
             stderr = (completed.stderr or "")[-1500:]

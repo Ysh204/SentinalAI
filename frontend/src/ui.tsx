@@ -12,7 +12,6 @@ export function LuxuryStage({
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (isLanding) return
     const el = ref.current
     if (!el) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -23,7 +22,7 @@ export function LuxuryStage({
     }
     window.addEventListener('pointermove', onMove, { passive: true })
     return () => window.removeEventListener('pointermove', onMove)
-  }, [isLanding])
+  }, [])
 
   return (
     <div className={`page ${className}`.trim()} ref={ref}>
@@ -37,9 +36,9 @@ export function LuxuryStage({
                 <stop offset="100%" stopColor="#fff1c2" stopOpacity="0.2" />
               </linearGradient>
               <linearGradient id="redFacet" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#33040d" stopOpacity="0.76" />
-                <stop offset="55%" stopColor="#a60918" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#180209" stopOpacity="0.7" />
+                <stop offset="0%" stopColor="#680b18" stopOpacity="0.55" />
+                <stop offset="55%" stopColor="#bf1529" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#3d050e" stopOpacity="0.5" />
               </linearGradient>
               <filter id="goldGlow" x="-40%" y="-40%" width="180%" height="180%">
                 <feGaussianBlur stdDeviation="1.2" result="b" />
@@ -113,12 +112,8 @@ export function LuxuryStage({
           </>
         )}
       </div>
-      {!isLanding && (
-        <>
-          <div className="pointer-glow" aria-hidden="true" />
-          <div className="grain" aria-hidden="true" />
-        </>
-      )}
+      <div className="pointer-glow" aria-hidden="true" />
+      <div className="grain" aria-hidden="true" />
       <div className="stage">{children}</div>
     </div>
   )
