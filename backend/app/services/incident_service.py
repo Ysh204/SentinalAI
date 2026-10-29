@@ -101,25 +101,21 @@ class IncidentService:
         with self._ingest_lock:
             existing = self.repository.find_open_by_fingerprint(fp)
             if existing:
-                current = self.repository.get(existing.id) or existing
-                current.occurrence_count += 1
-                current.error_message = error_msg
-                current.stack_trace = stack or current.stack_trace
-                if captured:
-                    current.captured_request = captured
-                if logs:
-                    current.logs = (current.logs + logs)[-80:]
-                current.history.append(
-                    HistoryEvent(
-                        timestamp=_utcnow(),
-                        from_status=current.status,
-                        to_status=current.status,
-                        event="duplicate_alert",
-                        detail=f"Grouped alert #{current.occurrence_count} with fingerprint {fp}.",
-                    )
+                hist_event = HistoryEvent(
+                    timestamp=_utcnow(),
+                    from_status=existing.status,
+                    to_status=existing.status,
+                    event="duplicate_alert",
+                    detail=f"Grouped alert #{existing.occurrence_count + 1} with fingerprint {fp}.",
                 )
-                current.history = current.history[-50:]
-                stored = self.repository.save(current)
+                stored = self.repository.record_duplicate_alert(
+                    incident_id=existing.id,
+                    new_logs=logs,
+                    event=hist_event,
+                    error_message=error_msg,
+                    stack_trace=stack,
+                    captured_request=captured,
+                )
                 self.repository.add_audit(stored.id, actor, "duplicate_alert", fp)
                 self._notify(stored, "updated")
                 return stored
@@ -183,21 +179,42 @@ class IncidentService:
         detail: str = "",
         actor: str = "system",
     ) -> IncidentPublic:
-        previous = incident.status
-        incident.history.append(
-            HistoryEvent(
-                timestamp=_utcnow(),
-                from_status=previous,
-                to_status=new_status,
-                event=event,
-                detail=detail,
+        for attempt in range(3):
+            fresh = self.repository.get(incident.id)
+            if fresh:
+                incident.version = fresh.version
+                incident.occurrence_count = fresh.occurrence_count
+                incident.logs = fresh.logs
+                seen_events = {(e.timestamp.isoformat(), e.event, e.detail) for e in incident.history}
+                for e in fresh.history:
+                    k = (e.timestamp.isoformat(), e.event, e.detail)
+                    if k not in seen_events:
+                        incident.history.append(e)
+                        seen_events.add(k)
+                incident.history.sort(key=lambda x: x.timestamp)
+                incident.history = incident.history[-50:]
+
+            previous = incident.status
+            incident.history.append(
+                HistoryEvent(
+                    timestamp=_utcnow(),
+                    from_status=previous,
+                    to_status=new_status,
+                    event=event,
+                    detail=detail,
+                )
             )
-        )
-        incident.status = new_status
-        stored = self.repository.save(incident)
-        self.repository.add_audit(stored.id, actor, event, detail)
-        self._notify(stored, event)
-        return stored
+            incident.history = incident.history[-50:]
+            incident.status = new_status
+            try:
+                stored = self.repository.save(incident)
+                self.repository.add_audit(stored.id, actor, event, detail)
+                self._notify(stored, event)
+                return stored
+            except SentinelAIError as exc:
+                if exc.code == "conflict" and attempt < 2:
+                    continue
+                raise
 
     def require_not_busy(self, incident: IncidentPublic) -> None:
         if incident.status in IN_PROGRESS_STATUSES:

@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from backend.app.core.exceptions import SentinelAIError
+from backend.app.core.exceptions import NotFoundError, SentinelAIError
 from backend.app.db.database import Database
 from backend.app.models.incident import TERMINAL_STATUSES, IncidentStatus
 from backend.app.models.schemas import (
@@ -162,6 +162,58 @@ class IncidentRepository:
             finally:
                 conn.close()
         return incident
+
+    def record_duplicate_alert(
+        self,
+        incident_id: str,
+        new_logs: list[str] | None = None,
+        event: HistoryEvent | None = None,
+        error_message: str | None = None,
+        stack_trace: str | None = None,
+        captured_request: dict[str, Any] | None = None,
+    ) -> IncidentPublic:
+        """Atomically record a grouped duplicate alert without incrementing row version."""
+        with self.db.lock:
+            conn = self.db.connect()
+            try:
+                row = conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+                if not row:
+                    raise NotFoundError(f"Incident {incident_id} was not found.")
+                keys = row.keys() if hasattr(row, "keys") else []
+                details = json.loads(row["details"] if "details" in keys else "{}")
+                history = json.loads(row["history"] if "history" in keys else "[]")
+
+                details["occurrence_count"] = int(details.get("occurrence_count") or 1) + 1
+                if new_logs:
+                    current_logs = details.get("logs") or []
+                    details["logs"] = (current_logs + new_logs)[-80:]
+                if captured_request:
+                    details["captured_request"] = captured_request
+                if event:
+                    history.append(event.model_dump(mode="json"))
+                    history = history[-50:]
+
+                updated_at = _dt_to_iso(_utcnow())
+                new_err = error_message if error_message is not None else row["error_message"]
+                new_stack = stack_trace if stack_trace is not None else row["stack_trace"]
+
+                conn.execute(
+                    """
+                    UPDATE incidents SET
+                        details = ?,
+                        history = ?,
+                        error_message = ?,
+                        stack_trace = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (json.dumps(details), json.dumps(history), new_err, new_stack, updated_at, incident_id),
+                )
+                conn.commit()
+                updated_row = conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+                return self._from_row(updated_row)
+            finally:
+                conn.close()
 
     def add_audit(self, incident_id: str | None, actor: str, action: str, detail: str = "") -> None:
         with self.db.lock:

@@ -29,10 +29,3 @@ def test_payments_outage_and_fallback() -> None:
     assert recovered.status_code == 200
     assert recovered.json()["charge"]["processor"] == "fallback-cod"
 
-
-def test_checkout_handles_code_bug_or_null_item() -> None:
-    client = TestClient(app)
-    client.post("/control/inject", json={"mode": "code_bug"})
-    response = client.post("/checkout")
-    assert response.status_code == 200
-    assert response.json()["ok"] is True

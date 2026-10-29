@@ -63,6 +63,35 @@ def sandbox_env(pythonpath: str | os.PathLike[str]) -> dict[str, str]:
     return env
 
 
+_POSIX_LAUNCHER = (
+    "import os, sys\n"
+    "try:\n"
+    "    import resource\n"
+    "    try:\n"
+    "        resource.setrlimit(resource.RLIMIT_CPU, (15, 15))\n"
+    "    except (ValueError, OSError):\n"
+    "        pass\n"
+    "    try:\n"
+    "        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))\n"
+    "    except (ValueError, OSError):\n"
+    "        pass\n"
+    "    try:\n"
+    "        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))\n"
+    "    except (ValueError, OSError):\n"
+    "        pass\n"
+    "except ImportError:\n"
+    "    pass\n"
+    "os.execvp(sys.argv[1], sys.argv[1:])\n"
+)
+
+
+def wrap_posix_command(command: Sequence[str]) -> list[str]:
+    """Wrap command with a launcher script that sets resource limits before exec, avoiding unsafe preexec_fn."""
+    if os.name == "nt":
+        return list(command)
+    return [sys.executable, "-c", _POSIX_LAUNCHER, *command]
+
+
 def posix_rlimits():
     """Return a preexec_fn that caps CPU and address space, or None on Windows."""
     if os.name == "nt":
@@ -204,8 +233,9 @@ def run_sandboxed(
     else:
         extra_flags["start_new_session"] = True
 
+    cmd = wrap_posix_command(command)
     proc = subprocess.Popen(
-        list(command),
+        cmd,
         cwd=cwd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

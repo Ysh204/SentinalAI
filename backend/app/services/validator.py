@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -43,6 +44,12 @@ class Validator:
                 )
             )
             _copy_tree(repo, workspace)
+            # Copy regression test fixtures into test files for validation
+            fixtures_dir = workspace / "fixtures"
+            if fixtures_dir.is_dir():
+                for fixture in fixtures_dir.glob("regression_*.py"):
+                    shutil.copy2(fixture, workspace / f"test_{fixture.name}")
+
             try:
                 init_local_baseline(workspace)
             except Exception:
@@ -54,15 +61,30 @@ class Validator:
                 cwd=workspace,
                 timeout=self.settings.pytest_timeout,
             )
+            failed_tests = re.findall(r"FAILED\s+(\S+)", baseline_check.stdout or "")
+
             applied = apply_unified_diff(incident.proposed_patch, workspace)
             pytest_check = self._run_pytest(workspace)
             ruff_check = self._run_ruff(workspace)
             checks = [baseline_check, pytest_check, ruff_check]
             overall = (
                 baseline_check.status == "failed"
+                and baseline_check.exit_code == 1
                 and pytest_check.status == "passed"
+                and pytest_check.exit_code == 0
                 and ruff_check.status in {"passed", "skipped"}
             )
+            if overall and failed_tests:
+                baseline_check.detail = (
+                    f"Baseline reproduced failure in {', '.join(failed_tests)}; patch resolved it."
+                )
+            elif baseline_check.exit_code == 0:
+                baseline_check.detail = "Baseline pytest passed without patch; bug was not reproduced."
+            elif baseline_check.exit_code is not None and baseline_check.exit_code != 1:
+                baseline_check.detail = (
+                    f"Baseline pytest exited with code {baseline_check.exit_code} "
+                    "(syntax or collection error, not an assertion failure)."
+                )
             return ValidationResults(
                 overall_passed=overall,
                 checks=checks,
