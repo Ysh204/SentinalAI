@@ -52,6 +52,14 @@ class Database:
                 )
                 self._ensure_column(conn, "incidents", "details", "TEXT NOT NULL DEFAULT '{}'")
                 self._ensure_column(conn, "incidents", "fingerprint", "TEXT")
+                try:
+                    # Databases created before the column existed keep the value inside the JSON blob.
+                    conn.execute(
+                        "UPDATE incidents SET fingerprint = json_extract(details, '$.fingerprint') "
+                        "WHERE fingerprint IS NULL AND json_extract(details, '$.fingerprint') IS NOT NULL"
+                    )
+                except sqlite3.OperationalError:
+                    pass  # SQLite built without JSON1: old rows simply will not group with new alerts
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_incidents_fingerprint ON incidents(fingerprint)"
                 )

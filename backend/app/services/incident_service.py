@@ -146,8 +146,15 @@ class IncidentService:
             raise NotFoundError(f"Incident {incident_id} was not found.")
         return incident
 
-    def list(self) -> list[IncidentPublic]:
-        return self.repository.list()
+    def list(self, limit: int | None = 100, offset: int = 0) -> list[IncidentPublic]:
+        return self.repository.list(limit=limit, offset=offset)
+
+    def list_all(self) -> list[IncidentPublic]:
+        """Unpaginated. Aggregates (metrics) must use this so they do not silently truncate at one page."""
+        return self.repository.list(limit=None)
+
+    def list_by_status(self, statuses) -> list[IncidentPublic]:
+        return self.repository.list_by_status(statuses)
 
     def save(self, incident: IncidentPublic) -> IncidentPublic:
         stored = self.repository.save(incident)

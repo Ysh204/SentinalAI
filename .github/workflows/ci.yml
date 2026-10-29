@@ -29,11 +29,11 @@ jobs:
 
       - name: Run Ruff Lint
         run: |
-          ruff check backend
+          ruff check backend victim_app
 
       - name: Run Pytest with Coverage
         run: |
-          pytest --cov=backend/app --cov-report=term-missing
+          pytest --cov=backend/app --cov-report=term-missing --cov-fail-under=80
 
   frontend:
     name: Frontend Build & Typecheck
@@ -56,6 +56,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck and Build
         run: npm run build

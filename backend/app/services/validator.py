@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -101,14 +102,27 @@ class Validator:
         timeout: int,
     ) -> ValidationCheck:
         try:
-            completed = run_sandboxed(command, cwd=cwd, timeout=timeout)
-        except TimeoutError:
+            completed = run_sandboxed(command, cwd=cwd, timeout=timeout, settings=self.settings)
+        except FileNotFoundError:
+            return ValidationCheck(name=name, status="skipped", detail=f"{name} is not installed.")
+        except subprocess.TimeoutExpired as exc:
+            # NB: subprocess.TimeoutExpired is not a builtin TimeoutError.
+            stdout = exc.stdout or ""
+            stderr = exc.stderr or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", errors="replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
             return ValidationCheck(
                 name=name,
                 status="failed",
-                detail=f"{name} timed out after {timeout} seconds.",
-                exit_code=-1,
+                detail=f"{name} timed out after {timeout}s.",
+                exit_code=None,
+                stdout=stdout[-4000:],
+                stderr=stderr[-4000:],
             )
+        except SentinelAIError:
+            raise  # e.g. sandbox_unavailable: fail closed instead of reporting a fake test failure
         except Exception as exc:
             return ValidationCheck(
                 name=name,

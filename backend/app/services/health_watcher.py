@@ -31,6 +31,10 @@ class HealthWatcher:
     def _loop(self) -> None:
         settings = self.container.settings
         while not self._stop.wait(settings.health_check_interval):
+            try:
+                self.container.orchestrator.recover_stuck_incidents(settings.stuck_timeout_seconds)
+            except Exception:
+                LOGGER.exception("Stuck-incident sweep failed")
             url = settings.victim_app_url.rstrip("/")
             if url == "inline":
                 continue

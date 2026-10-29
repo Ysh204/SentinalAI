@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 
 from backend.app.core.exceptions import InvalidTransitionError, SentinelAIError
 from backend.app.models.incident import (
@@ -55,17 +56,34 @@ class Orchestrator:
         self.postmortems = postmortems
         self._locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
 
-    def recover_stuck_incidents(self) -> list[str]:
-        recovered = []
-        for inc in self.incidents.list():
-            if inc.status in IN_PROGRESS_STATUSES:
+    def recover_stuck_incidents(self, max_age_seconds: float = 0.0) -> list[str]:
+        """Fail incidents left in an in-progress status by a crash.
+
+        Only incidents idle for longer than ``max_age_seconds`` are touched, and any incident whose
+        lock is currently held by a live worker in this process is skipped, so a sweep never
+        kills a healthy operation.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
+        recovered: list[str] = []
+        for stale in self.incidents.list_by_status(IN_PROGRESS_STATUSES):
+            if stale.updated_at > cutoff:
+                continue
+            lock = self._locks[stale.id]
+            if not lock.acquire(blocking=False):
+                continue  # a live worker owns it
+            try:
+                incident = self.incidents.get(stale.id)
+                if incident.status not in IN_PROGRESS_STATUSES:
+                    continue
                 self.incidents.transition(
-                    inc,
+                    incident,
                     IncidentStatus.FAILED,
                     "stuck_recovery",
-                    "Incident was in progress during shutdown or restart; reset to FAILED.",
+                    f"No progress for over {int(max_age_seconds)}s in {incident.status.value}; reset to FAILED.",
                 )
-                recovered.append(inc.id)
+                recovered.append(incident.id)
+            finally:
+                lock.release()
         return recovered
 
     def triage_incident(self, incident_id: str) -> IncidentPublic:

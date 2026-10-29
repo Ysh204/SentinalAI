@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from backend.app.api.deps import get_current_actor, get_stream_actor, require_demo_mode
 from backend.app.models.incident import TERMINAL_STATUSES
 from backend.app.models.schemas import MetricsResponse
 from backend.app.services.eval_harness import SCENARIOS, score
@@ -10,13 +11,13 @@ router = APIRouter(tags=["events"])
 
 
 @router.get("/api/events")
-async def incident_events() -> StreamingResponse:
+async def incident_events(_actor: str = Depends(get_stream_actor)) -> StreamingResponse:
     return StreamingResponse(hub.stream(), media_type="text/event-stream")
 
 
 @router.get("/api/metrics", response_model=MetricsResponse)
-def metrics(request: Request) -> MetricsResponse:
-    incidents = request.app.state.container.incidents.list()
+def metrics(request: Request, _actor: str = Depends(get_current_actor)) -> MetricsResponse:
+    incidents = request.app.state.container.incidents.list_all()
     by_status: dict[str, int] = {}
     by_category: dict[str, int] = {}
     durations: list[float] = []
@@ -40,7 +41,7 @@ def metrics(request: Request) -> MetricsResponse:
     )
 
 
-@router.post("/api/eval/run")
+@router.post("/api/eval/run", dependencies=[Depends(get_current_actor), Depends(require_demo_mode)])
 def run_eval(request: Request) -> dict:
     import uuid
 

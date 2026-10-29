@@ -110,13 +110,19 @@ class MitigationService:
             return
         url = self._shop_url()
         try:
-            httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.5))
+            response = httpx.post(f"{url}{path}", timeout=httpx.Timeout(2.0, connect=0.5))
         except httpx.HTTPError as exc:
             raise SentinelAIError(
                 f"Victim app is unreachable at {url}; cannot execute mitigation.",
                 code="victim_unreachable",
                 status_code=503,
             ) from exc
+        if response.status_code >= 400:
+            raise SentinelAIError(
+                f"Shop control API returned {response.status_code}; mitigation did not run.",
+                code="mitigation_failed",
+                status_code=502,
+            )
 
     def _error_rate(self) -> float:
         if self._is_inline():
@@ -144,7 +150,7 @@ class MitigationService:
             from victim_app.shop import SAMPLE_CART, _run_checkout
 
             try:
-                _run_checkout(dict(SAMPLE_CART))
+                _run_checkout(dict(SAMPLE_CART), dry_run=True)
                 return True
             except Exception:
                 return False
@@ -153,7 +159,7 @@ class MitigationService:
             response = httpx.post(
                 f"{url}/checkout",
                 json=PROBE_CART,
-                headers={"X-Synthetic-Probe": "1"},
+                headers={"X-Synthetic-Probe": "1"},  # shop runs the full path but never charges or reports
                 timeout=httpx.Timeout(1.5, connect=0.2),
             )
         except httpx.HTTPError as exc:

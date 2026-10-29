@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from './api'
+import { api, eventsUrl } from './api'
 import { sampleIncident, workflow } from './data'
 import type { HealthResponse, Incident } from './types'
 
@@ -206,7 +206,7 @@ export default function Console() {
 
   useEffect(() => {
     if (!health) return
-    const source = new EventSource('/api/events')
+    const source = new EventSource(eventsUrl())
     const refresh = () => {
       void loadList()
     }

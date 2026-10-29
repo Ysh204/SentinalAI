@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from backend.app.api.deps import get_current_actor
+from backend.app.api.deps import get_current_actor, require_demo_mode
 from backend.app.models.schemas import AlertCreate, BreakRequest, IncidentPublic
 
 router = APIRouter(tags=["alerts"])
@@ -19,7 +19,7 @@ def ingest_alert(
     return incident
 
 
-@router.post("/api/demo/break", response_model=IncidentPublic)
+@router.post("/api/demo/break", response_model=IncidentPublic, dependencies=[Depends(require_demo_mode)])
 def break_checkout(
     payload: BreakRequest,
     request: Request,
@@ -28,7 +28,7 @@ def break_checkout(
     return _break_and_ingest(request.app.state.container, payload.mode)
 
 
-@router.post("/api/demo/simulate", response_model=IncidentPublic)
+@router.post("/api/demo/simulate", response_model=IncidentPublic, dependencies=[Depends(require_demo_mode)])
 def simulate_incident(
     request: Request,
     actor: str = Depends(get_current_actor),

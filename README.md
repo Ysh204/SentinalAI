@@ -191,3 +191,26 @@ If JSON is malformed, triage falls back to the recorded demo rules instead of gu
 - Shop control actions are demo adapters. Real k8s/feature-flag tools would implement the same interface.
 - A passing sandbox test is not proof the fix is correct.
 - No auth on the local API.
+
+## Security configuration
+
+Local demo defaults are convenient, not safe. Before exposing SentinelAI to anyone else:
+
+1. **Authentication.** Set `API_KEYS=alice=<token>,bob=<token>` in `.env`. Every endpoint except `GET /health` then
+   requires `Authorization: Bearer <token>` (or `X-API-Key`). The approver recorded in the audit log is the identity
+   attached to the key; names sent in request bodies are ignored. `AUTH_ENABLED=true` without keys refuses to start.
+   The live event stream accepts `?access_token=` because browsers cannot set headers on `EventSource`: use a
+   dedicated key for it, since query strings may appear in proxy logs.
+2. **Isolation.** Validation runs the patched project's tests. With `SANDBOX_MODE=subprocess` that is plain code
+   execution on your machine. Build the sandbox image and switch to Docker:
+
+   ```bash
+   docker build -f Dockerfile.sandbox -t sentinelai-sandbox:latest .
+   # .env: SANDBOX_MODE=docker
+   ```
+
+   In Docker mode the code runs with no network, a read-only root filesystem, dropped capabilities and capped
+   CPU/memory/processes. If Docker is unavailable SentinelAI refuses to validate rather than falling back to the host.
+3. **Demo endpoints.** Set `DEMO_MODE=false` to disable `/api/demo/*` and `/api/eval/run`.
+4. **Frontend key.** Never put a real key in `VITE_API_KEY`: it is public in the built bundle. The console asks for the
+   key at runtime and keeps it in `sessionStorage`.
