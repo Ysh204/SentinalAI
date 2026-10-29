@@ -384,3 +384,94 @@ def test_redaction_across_all_fields(tmp_settings, container) -> None:
     assert card_num not in incident.logs[0]
 
 
+def test_duplicate_alerts_during_validation_flow(tmp_settings, container) -> None:
+    from backend.app.models.schemas import AlertCreate
+
+    alert = AlertCreate(
+        error_message="Test duplicate in validation",
+        service="checkout",
+        fingerprint="fp-validation-dup-1",
+    )
+    incident = container.incidents.ingest_alert(alert)
+    assert incident.version == 1
+
+    # Transition to VALIDATING (holds incident in memory as orchestrator does)
+    validating = container.incidents.transition(
+        incident, IncidentStatus.VALIDATING, "validate_started"
+    )
+    assert validating.version == 2
+    assert validating.occurrence_count == 1
+
+    # Duplicate alerts arrive while validation is in progress
+    container.incidents.ingest_alert(alert)
+    container.incidents.ingest_alert(alert)
+
+    # In DB, occurrence count has incremented to 3, but version stays 2 (no conflict caused)
+    db_record = container.incidents.get(incident.id)
+    assert db_record.occurrence_count == 3
+    assert db_record.version == 2
+
+    # Validation completes and transition to VALIDATED succeeds without 409
+    validated = container.incidents.transition(
+        validating, IncidentStatus.VALIDATED, "validate_passed"
+    )
+    assert validated.status == IncidentStatus.VALIDATED
+    assert validated.occurrence_count == 3
+    assert validated.version == 3
+
+
+def test_protected_files_disallows_creation_of_python_entrypoints(tmp_path: Path) -> None:
+    from backend.app.services.diff_utils import apply_unified_diff, is_protected_file
+
+    assert is_protected_file("sitecustomize.py") is True
+    assert is_protected_file("usercustomize.py") is True
+    assert is_protected_file("pwn.pth") is True
+    assert is_protected_file("subdir/exploit.pth") is True
+    assert is_protected_file(".coveragerc") is True
+    assert is_protected_file("__init__.py") is True
+    assert is_protected_file("subpkg/__init__.py") is True
+    assert is_protected_file("fixtures/regression.py") is True
+
+    diff_entrypoint = (
+        "--- /dev/null\n"
+        "+++ b/sitecustomize.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        "+import os\n"
+        "+os.system('id')\n"
+    )
+    with pytest.raises(SentinelAIError) as exc_info:
+        apply_unified_diff(diff_entrypoint, tmp_path)
+    assert exc_info.value.code == "protected_file_modified"
+
+    diff_init = (
+        "--- /dev/null\n"
+        "+++ b/__init__.py\n"
+        "@@ -0,0 +1,1 @@\n"
+        "+# init file\n"
+    )
+    with pytest.raises(SentinelAIError) as exc_info:
+        apply_unified_diff(diff_init, tmp_path)
+    assert exc_info.value.code == "protected_file_modified"
+
+
+def test_wrap_posix_command_launcher() -> None:
+    import sys
+
+    from backend.app.services.sandbox import _POSIX_LAUNCHER, wrap_posix_command
+
+    cmd = ["pytest", "-q"]
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("os.name", "posix")
+        wrapped = wrap_posix_command(cmd)
+        assert wrapped[0] == sys.executable
+        assert wrapped[1] == "-c"
+        assert wrapped[2] == _POSIX_LAUNCHER
+        assert wrapped[3:] == cmd
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("os.name", "nt")
+        not_wrapped = wrap_posix_command(cmd)
+        assert not_wrapped == cmd
+
+
+

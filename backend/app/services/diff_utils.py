@@ -17,6 +17,10 @@ PROTECTED_NAMES = {
     "setup.cfg",
     "setup.py",
     "tox.ini",
+    "sitecustomize.py",
+    "usercustomize.py",
+    ".coveragerc",
+    "__init__.py",
 }
 
 
@@ -48,11 +52,13 @@ def is_protected_file(path_str: str) -> bool:
     name = path.name.lower()
     if name in PROTECTED_NAMES:
         return True
+    if name.endswith(".pth"):
+        return True
     if name.startswith(".env"):
         return True
     if name.startswith("test_") or name.endswith("_test.py"):
         return True
-    if any(part.lower() in {"tests", "test", ".git", ".github"} for part in path.parts):
+    if any(part.lower() in {"tests", "test", ".git", ".github", "fixtures"} for part in path.parts):
         return True
     return False
 
