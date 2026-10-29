@@ -73,13 +73,32 @@ class IncidentRepository:
                 conn.close()
         return self._from_row(row) if row else None
 
-    def list(self, limit: int = 100, offset: int = 0) -> list[IncidentPublic]:
+    def list(self, limit: int | None = 100, offset: int = 0) -> list[IncidentPublic]:
+        """Newest first. ``limit=None`` returns everything (use for aggregates, not for API pages)."""
+        query = "SELECT * FROM incidents ORDER BY created_at DESC"
+        params: tuple = ()
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params = (limit, offset)
+        with self.db.lock:
+            conn = self.db.connect()
+            try:
+                rows = conn.execute(query, params).fetchall()
+            finally:
+                conn.close()
+        return [self._from_row(row) for row in rows]
+
+    def list_by_status(self, statuses) -> list[IncidentPublic]:
+        values = sorted({getattr(status, "value", status) for status in statuses})
+        if not values:
+            return []
+        placeholders = ",".join("?" for _ in values)
         with self.db.lock:
             conn = self.db.connect()
             try:
                 rows = conn.execute(
-                    "SELECT * FROM incidents ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                    (limit, offset),
+                    f"SELECT * FROM incidents WHERE status IN ({placeholders}) ORDER BY created_at DESC",
+                    tuple(values),
                 ).fetchall()
             finally:
                 conn.close()
