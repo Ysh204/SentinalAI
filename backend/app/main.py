@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,11 +18,22 @@ from backend.app.core.logging import configure_logging
 from backend.app.services.events import hub
 from backend.app.services.health_watcher import HealthWatcher
 
+LOGGER = logging.getLogger("sentinelai")
+
 
 def create_app(settings: Settings | None = None, container: AppContainer | None = None) -> FastAPI:
     settings = settings or load_settings()
+    if settings.auth_enabled and not settings.credentials:
+        raise RuntimeError("AUTH_ENABLED is set but no API key is configured (set API_KEYS or SENTINEL_API_KEY).")
     configure_logging(settings)
     container = container or build_container(settings)
+    if not settings.auth_enabled:
+        LOGGER.warning("Authentication is DISABLED: every endpoint is open. Set API_KEYS before exposing this service.")
+    if settings.sandbox_mode != "docker":
+        LOGGER.warning(
+            "SANDBOX_MODE=%s: patch tests run directly on this host. Use docker for untrusted patches.",
+            settings.sandbox_mode,
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
