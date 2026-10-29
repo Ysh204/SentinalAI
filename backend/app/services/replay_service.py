@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import shutil
 import tempfile
 from pathlib import Path
@@ -25,6 +26,8 @@ DEFAULT_BODY = {
     "card_number": "4242424242424242",
     "items": [{"sku": "mug", "price": 12, "qty": 1}],
 }
+ALLOWED_REPLAY_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
+FORBIDDEN_PATH_PREFIXES = ("/control", "/internal", "/admin", "/manage")
 
 
 class ReplayService:
@@ -36,25 +39,42 @@ class ReplayService:
         if not incident.proposed_patch:
             raise SentinelAIError("A patch is required before replay.", code="missing_patch", status_code=409)
         captured = incident.captured_request if isinstance(incident.captured_request, dict) else {}
-        method = str(captured.get("method") or "POST")
-        path = str(captured.get("path") or "/checkout")
-        if not path.startswith("/"):
-            path = "/checkout"
+        method = str(captured.get("method") or "POST").upper()
+        if method not in ALLOWED_REPLAY_METHODS:
+            raise SentinelAIError(
+                f"Replay method '{method}' is not allowed.",
+                code="invalid_replay_method",
+                status_code=400,
+            )
+
+        raw_path = str(captured.get("path") or "/checkout")
+        clean_path = posixpath.normpath("/" + raw_path.lstrip("/"))
+        for forbidden in FORBIDDEN_PATH_PREFIXES:
+            if clean_path.startswith(forbidden):
+                raise SentinelAIError(
+                    f"Replay path '{clean_path}' is protected and cannot be replayed.",
+                    code="forbidden_replay_path",
+                    status_code=400,
+                )
+
         body = captured.get("body") if isinstance(captured.get("body"), dict) else dict(DEFAULT_BODY)
         inject = _live_inject_mode(self.settings) or captured.get("inject")
 
-        before_status, before_detail = self._dispatch_unpatched(method, path, body, inject)
+        repo = resolve_repository_path(incident.repository_path, self.settings)
+        before_status, before_detail = self._run_sandbox_request(
+            repo, method, clean_path, body, inject, apply_patch=None
+        )
         after_status, after_detail, sandbox_name = self._dispatch_patched(
-            incident, method, path, body, inject
+            incident, method, clean_path, body, inject
         )
         return ReplayResult(
             before_status=before_status,
             after_status=after_status,
             before_ok=before_status < 400,
             after_ok=after_status < 400,
-            request_path=path,
+            request_path=clean_path,
             detail=(
-                f"HTTP {method} {path} payload replayed. "
+                f"HTTP {method} {clean_path} payload replayed in sandbox. "
                 f"unpatched={before_status} patched={after_status}. "
                 f"inject={inject or 'none'}. {before_detail} | {after_detail}"
             ),
@@ -64,22 +84,6 @@ class ReplayService:
     def _dispatch_unpatched(
         self, method: str, path: str, body: dict[str, Any], inject: str | None
     ) -> tuple[int, str]:
-        url = self.settings.victim_app_url.rstrip("/")
-        if url != "inline":
-            try:
-                response = httpx.request(
-                    method,
-                    f"{url}{path}",
-                    json=body,
-                    timeout=httpx.Timeout(3.0, connect=0.4),
-                )
-            except httpx.HTTPError as exc:
-                raise SentinelAIError(
-                    f"Victim app is unreachable at {url}; cannot replay the captured request.",
-                    code="victim_unreachable",
-                    status_code=503,
-                ) from exc
-            return int(response.status_code), f"live unpatched HTTP {response.status_code}"
         repo = resolve_repository_path("victim_app", self.settings)
         return self._run_sandbox_request(repo, method, path, body, inject, apply_patch=None)
 
@@ -166,11 +170,7 @@ def _live_inject_mode(settings: Settings) -> str | None:
 
 
 def as_check(replay: ReplayResult) -> ValidationCheck:
-    status = (
-        "passed"
-        if replay.after_ok and not replay.before_ok
-        else ("passed" if replay.after_ok else "failed")
-    )
+    status = "passed" if (replay.after_ok and not replay.before_ok) else "failed"
     before_status = "ok" if replay.before_ok else "fail"
     after_status = "ok" if replay.after_ok else "fail"
     return ValidationCheck(

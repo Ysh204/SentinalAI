@@ -99,21 +99,24 @@ class Orchestrator:
             )
             try:
                 verdict, context = self.triage.run(incident)
-            except Exception:
+                incident.verdict = verdict
+                incident.context = context
+                next_status = IncidentStatus.TRIAGED
+                detail = f"{verdict.category.value} ({verdict.confidence:.2f})"
+                if verdict.recommended_track == RecommendedTrack.MITIGATION:
+                    incident.mitigation = self.mitigation.propose(incident)
+                    next_status = IncidentStatus.MITIGATION_PROPOSED
+                    detail += f"; proposed {incident.mitigation.action}"
+                elif verdict.escalate_to_human:
+                    detail += "; escalated to human"
+            except Exception as exc:
                 self.incidents.transition(
-                    incident, IncidentStatus.FAILED, "triage_failed", "Triage did not complete."
+                    incident,
+                    IncidentStatus.FAILED,
+                    "triage_failed",
+                    f"Triage did not complete: {exc}",
                 )
                 raise
-            incident.verdict = verdict
-            incident.context = context
-            next_status = IncidentStatus.TRIAGED
-            detail = f"{verdict.category.value} ({verdict.confidence:.2f})"
-            if verdict.recommended_track == RecommendedTrack.MITIGATION:
-                incident.mitigation = self.mitigation.propose(incident)
-                next_status = IncidentStatus.MITIGATION_PROPOSED
-                detail += f"; proposed {incident.mitigation.action}"
-            elif verdict.escalate_to_human:
-                detail += "; escalated to human"
             return self.incidents.transition(
                 incident, next_status, "triage_completed", detail
             )
@@ -236,8 +239,11 @@ class Orchestrator:
                 raise
             incident.replay = result
             if incident.validation_results:
+                incident.validation_results.checks = [
+                    c for c in incident.validation_results.checks if c.name != "request_replay"
+                ]
                 incident.validation_results.checks.append(as_check(result))
-            if result.after_ok:
+            if result.after_ok and not result.before_ok:
                 return self.incidents.transition(
                     incident,
                     IncidentStatus.PATCH_VERIFIED,
@@ -279,9 +285,19 @@ class Orchestrator:
                 approval = self.approvals.approve(incident, actor=request.actor, note=request.note)
                 incident.approval = approval
                 incident = self.incidents.transition(
-                    incident, IncidentStatus.MITIGATING, "mitigation_started", "Human approved."
+                    incident, IncidentStatus.MITIGATING, "mitigation_started", "Human approved.", actor=request.actor
                 )
-                record = self.mitigation.execute(incident, actor=request.actor)
+                try:
+                    record = self.mitigation.execute(incident, actor=request.actor)
+                except Exception as exc:
+                    self.incidents.transition(
+                        incident,
+                        IncidentStatus.FAILED,
+                        "mitigation_failed",
+                        f"Mitigation failed with unexpected error: {exc}",
+                        actor=request.actor,
+                    )
+                    raise
                 incident.mitigation = record
                 next_status = IncidentStatus.MITIGATED if record.recovered else IncidentStatus.FAILED
                 return self.incidents.transition(
@@ -289,6 +305,7 @@ class Orchestrator:
                     next_status,
                     "mitigation_executed",
                     record.detail,
+                    actor=request.actor,
                 )
             record = self.approvals.approve(incident, actor=request.actor, note=request.note)
             incident.approval = record
@@ -297,6 +314,7 @@ class Orchestrator:
                 IncidentStatus.APPROVED,
                 "approved",
                 "Human approved the patch. No merge, push, or deploy was performed.",
+                actor=request.actor,
             )
 
     def reject(self, incident_id: str, request: RejectRequest) -> IncidentPublic:
@@ -314,6 +332,7 @@ class Orchestrator:
                 IncidentStatus.REJECTED,
                 "rejected",
                 request.reason,
+                actor=request.actor,
             )
 
     def postmortem(self, incident_id: str) -> IncidentPublic:

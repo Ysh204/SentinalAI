@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from backend.app.core.exceptions import SentinelAIError
-from backend.app.models.incident import RecommendedTrack, VerdictCategory
+from backend.app.models.incident import IncidentStatus, RecommendedTrack, VerdictCategory
 from backend.app.models.schemas import IncidentPublic, Verdict
 from backend.app.services.diff_utils import apply_unified_diff, parse_file_patches
 from backend.app.services.events import EventHub
@@ -284,10 +284,103 @@ def test_authentication_enforcement_and_actor_derivation(tmp_settings) -> None:
     )
     assert resp.status_code == 403
 
-    # 3. Valid key with custom actor in token -> 201
+    # 3. Valid key in token -> 201
     resp = auth_client.post(
         "/api/alerts",
         json={"error_message": "test", "service": "checkout"},
         headers={"Authorization": "Bearer secret-key"},
     )
     assert resp.status_code == 201
+
+
+def test_replay_rejects_forbidden_paths_and_methods(tmp_settings) -> None:
+    from backend.app.services.replay_service import ReplayService
+
+    service = ReplayService(tmp_settings)
+    incident = _incident(
+        proposed_patch="diff",
+        captured_request={"method": "POST", "path": "/control/restart"},
+    )
+    with pytest.raises(SentinelAIError) as exc_info:
+        service.replay(incident)
+    assert exc_info.value.status_code == 400
+    assert "protected" in exc_info.value.message
+
+    incident_bad_method = _incident(
+        proposed_patch="diff",
+        captured_request={"method": "FOOBAR", "path": "/checkout"},
+    )
+    with pytest.raises(SentinelAIError) as exc_info:
+        service.replay(incident_bad_method)
+    assert exc_info.value.status_code == 400
+    assert "method" in exc_info.value.message
+
+
+def test_protected_files_case_insensitive_directory() -> None:
+    from backend.app.services.diff_utils import is_protected_file
+
+    assert is_protected_file("Tests/helper.py") is True
+    assert is_protected_file("TEST/sub/util.py") is True
+    assert is_protected_file(".Git/config") is True
+    assert is_protected_file("src/app.py") is False
+
+
+def test_patch_creates_new_file(tmp_path: Path) -> None:
+    diff = (
+        "--- /dev/null\n"
+        "+++ b/new_module.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        "+def hello():\n"
+        "+    return 'world'\n"
+    )
+    changed = apply_unified_diff(diff, tmp_path)
+    assert changed == ["new_module.py"]
+    assert (tmp_path / "new_module.py").read_text() == "def hello():\n    return 'world'\n"
+
+
+def test_optimistic_concurrency_lock_conflict(tmp_settings, container) -> None:
+    from backend.app.models.schemas import AlertCreate
+
+    incident = container.incidents.ingest_alert(
+        AlertCreate(error_message="Test concurrency", service="checkout")
+    )
+    # Stale copy with version=1
+    stale_copy = container.incidents.get(incident.id)
+
+    # First update succeeds, incrementing version to 2
+    container.incidents.transition(incident, IncidentStatus.TRIAGING, "triage_started")
+    assert container.incidents.get(incident.id).version == 2
+
+    # Attempting to save stale copy (with version=1) raises conflict
+    with pytest.raises(SentinelAIError) as exc_info:
+        container.incidents.repository.save(stale_copy)
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "conflict"
+
+
+def test_redaction_across_all_fields(tmp_settings, container) -> None:
+    from backend.app.models.schemas import AlertCreate
+
+    secret_key = "Bearer secret-token-1234567890"
+    card_num = "4242-4242-4242-4242"
+    email = "leaked@example.com"
+    alert = AlertCreate(
+        source="webhook",
+        service="checkout",
+        title=f"Incident with {email}",
+        error_message=f"Failed card {card_num}",
+        stack_trace=f"Trace with {secret_key}",
+        logs=[f"Log: user {email} used {card_num}"],
+    )
+    incident = container.incidents.ingest_alert(alert)
+
+    assert "[REDACTED_EMAIL]" in incident.title
+    assert email not in incident.title
+    assert "[REDACTED_CARD]" in incident.error_message
+    assert card_num not in incident.error_message
+    assert "[REDACTED_SECRET]" in incident.stack_trace
+    assert secret_key not in incident.stack_trace
+    assert "[REDACTED_CARD]" in incident.logs[0]
+    assert card_num not in incident.logs[0]
+
+

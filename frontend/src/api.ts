@@ -2,31 +2,6 @@ import type { HealthResponse, Incident, IncidentCreate, MetricsResponse } from '
 
 const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
 const envApiKey = (import.meta.env.VITE_API_KEY as string | undefined)?.trim()
-const KEY_STORAGE = 'sentinel_api_key'
-
-// Anything in VITE_* is public in the built bundle. Prefer a key the operator types in at runtime;
-// it lives in sessionStorage only, so it is never shipped to other visitors.
-function storedKey(): string | undefined {
-  try {
-    return window.sessionStorage.getItem(KEY_STORAGE) ?? envApiKey
-  } catch {
-    return envApiKey
-  }
-}
-
-export function setApiKey(key: string): void {
-  try {
-    window.sessionStorage.setItem(KEY_STORAGE, key)
-  } catch {
-    /* storage unavailable: the next request will prompt again */
-  }
-}
-
-/** URL for the SSE stream. EventSource cannot send headers, so the key rides in the query string. */
-export function eventsUrl(): string {
-  const key = storedKey()
-  return key ? `/api/events?access_token=${encodeURIComponent(key)}` : '/api/events'
-}
 
 function bases(): string[] {
   if (envBase) return [envBase.replace(/\/$/, '')]
@@ -43,17 +18,16 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: ApiError | undefined
-  const key = storedKey()
-  const authHeaders: Record<string, string> = key ? { Authorization: `Bearer ${key}` } : {}
-  const extra = {
+  const authHeaders: Record<string, string> = envApiKey ? { Authorization: `Bearer ${envApiKey}` } : {}
+  const extra: RequestInit = {
+    ...init,
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders,
-      ...(init?.headers ?? {}),
+      ...((init?.headers as Record<string, string>) ?? {}),
     },
-    ...init,
   }
 
   for (const base of bases()) {
@@ -72,13 +46,6 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
       if ((response.status === 502 || response.status === 504) && !envBase) {
         lastError = new ApiError('Gateway error on this address; trying the next.', response.status)
         continue
-      }
-      if (response.status === 401 && !retried && typeof window !== 'undefined') {
-        const entered = window.prompt('This SentinelAI server requires an API key:')
-        if (entered?.trim()) {
-          setApiKey(entered.trim())
-          return request<T>(path, init, true)
-        }
       }
       let detail = response.statusText
       try {
@@ -137,4 +104,15 @@ export const api = {
     request<Incident>('/api/demo/break', { method: 'POST', body: JSON.stringify({ mode }) }),
   simulateIncident: () => request<Incident>('/api/demo/simulate', { method: 'POST' }),
   metrics: () => request<MetricsResponse>('/api/metrics'),
+  audit: (incidentId?: string) =>
+    request<Array<Record<string, unknown>>>(
+      incidentId ? `/api/incidents/${incidentId}/audit` : '/api/incidents/audit'
+    ),
 }
+
+export function eventsUrl(): string {
+  const base = envBase ? envBase.replace(/\/$/, '') : (bases()[0] || '')
+  const query = envApiKey ? `?access_token=${encodeURIComponent(envApiKey)}` : ''
+  return `${base}/api/events${query}`
+}
+

@@ -45,6 +45,7 @@ class Database:
                         history TEXT NOT NULL DEFAULT '[]',
                         details TEXT NOT NULL DEFAULT '{}',
                         fingerprint TEXT,
+                        version INTEGER NOT NULL DEFAULT 1,
                         created_at TEXT NOT NULL,
                         updated_at TEXT NOT NULL
                     )
@@ -52,6 +53,7 @@ class Database:
                 )
                 self._ensure_column(conn, "incidents", "details", "TEXT NOT NULL DEFAULT '{}'")
                 self._ensure_column(conn, "incidents", "fingerprint", "TEXT")
+                self._ensure_column(conn, "incidents", "version", "INTEGER NOT NULL DEFAULT 1")
                 try:
                     # Databases created before the column existed keep the value inside the JSON blob.
                     conn.execute(

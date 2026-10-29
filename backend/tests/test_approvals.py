@@ -49,3 +49,13 @@ def test_rejection_records_reason(client: TestClient) -> None:
     assert body["status"] == "REJECTED"
     assert body["approval"]["decision"] == "rejected"
     assert "evidence" in body["approval"]["reason"]
+
+    # Verify audit endpoint records rejection with human actor
+    audit_resp = client.get(f"/api/incidents/{incident_id}/audit")
+    assert audit_resp.status_code == 200
+    entries = audit_resp.json()
+    assert any(entry["action"] == "rejected" for entry in entries)
+
+    all_audit_resp = client.get("/api/incidents/audit")
+    assert all_audit_resp.status_code == 200
+    assert len(all_audit_resp.json()) >= len(entries)

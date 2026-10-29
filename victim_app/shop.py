@@ -8,13 +8,13 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 try:
-    from victim_app import state
-    from victim_app.redact import redact
-    from victim_app.sdk import format_exc, report_error
-except ImportError:
     import state
     from redact import redact
     from sdk import format_exc, report_error
+except ImportError:
+    from victim_app import state
+    from victim_app.redact import redact
+    from victim_app.sdk import format_exc, report_error
 
 router = APIRouter()
 

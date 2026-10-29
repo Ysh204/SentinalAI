@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from backend.app.core.exceptions import SentinelAIError
 from backend.app.db.database import Database
 from backend.app.models.incident import TERMINAL_STATUSES, IncidentStatus
 from backend.app.models.schemas import (
@@ -47,11 +48,11 @@ class IncidentRepository:
                     INSERT INTO incidents (
                         id, title, error_message, stack_trace, repository_path, status,
                         root_cause_analysis, proposed_patch, validation_results, approval,
-                        history, details, fingerprint, created_at, updated_at
+                        history, details, fingerprint, version, created_at, updated_at
                     ) VALUES (
                         :id, :title, :error_message, :stack_trace, :repository_path, :status,
                         :root_cause_analysis, :proposed_patch, :validation_results, :approval,
-                        :history, :details, :fingerprint, :created_at, :updated_at
+                        :history, :details, :fingerprint, :version, :created_at, :updated_at
                     )
                     """,
                     payload,
@@ -72,32 +73,13 @@ class IncidentRepository:
                 conn.close()
         return self._from_row(row) if row else None
 
-    def list(self, limit: int | None = 100, offset: int = 0) -> list[IncidentPublic]:
-        """Newest first. ``limit=None`` returns everything (use for aggregates, not for API pages)."""
-        query = "SELECT * FROM incidents ORDER BY created_at DESC"
-        params: tuple = ()
-        if limit is not None:
-            query += " LIMIT ? OFFSET ?"
-            params = (limit, offset)
-        with self.db.lock:
-            conn = self.db.connect()
-            try:
-                rows = conn.execute(query, params).fetchall()
-            finally:
-                conn.close()
-        return [self._from_row(row) for row in rows]
-
-    def list_by_status(self, statuses) -> list[IncidentPublic]:
-        values = sorted({getattr(status, "value", status) for status in statuses})
-        if not values:
-            return []
-        placeholders = ",".join("?" for _ in values)
+    def list(self, limit: int = 100, offset: int = 0) -> list[IncidentPublic]:
         with self.db.lock:
             conn = self.db.connect()
             try:
                 rows = conn.execute(
-                    f"SELECT * FROM incidents WHERE status IN ({placeholders}) ORDER BY created_at DESC",
-                    tuple(values),
+                    "SELECT * FROM incidents ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
                 ).fetchall()
             finally:
                 conn.close()
@@ -129,7 +111,7 @@ class IncidentRepository:
         with self.db.lock:
             conn = self.db.connect()
             try:
-                conn.execute(
+                cursor = conn.execute(
                     """
                     UPDATE incidents SET
                         title = :title,
@@ -144,12 +126,20 @@ class IncidentRepository:
                         history = :history,
                         details = :details,
                         fingerprint = :fingerprint,
-                        updated_at = :updated_at
-                    WHERE id = :id
+                        updated_at = :updated_at,
+                        version = version + 1
+                    WHERE id = :id AND version = :version
                     """,
                     payload,
                 )
+                if cursor.rowcount == 0:
+                    raise SentinelAIError(
+                        "Incident was modified concurrently (version conflict).",
+                        code="conflict",
+                        status_code=409,
+                    )
                 conn.commit()
+                incident.version += 1
             finally:
                 conn.close()
         return incident
@@ -222,6 +212,7 @@ class IncidentRepository:
             "history": json.dumps([event.model_dump(mode="json") for event in incident.history]),
             "details": json.dumps(details),
             "fingerprint": incident.fingerprint,
+            "version": incident.version,
             "created_at": _dt_to_iso(incident.created_at),
             "updated_at": _dt_to_iso(incident.updated_at),
         }
@@ -236,6 +227,7 @@ class IncidentRepository:
         mitigation = details.get("mitigation")
         postmortem = details.get("postmortem")
         fp = row["fingerprint"] if "fingerprint" in keys and row["fingerprint"] else details.get("fingerprint")
+        version = int(row["version"]) if "version" in keys and row["version"] is not None else 1
         return IncidentPublic(
             id=row["id"],
             title=row["title"],
@@ -269,6 +261,7 @@ class IncidentRepository:
                 ApprovalRecord.model_validate_json(row["approval"]) if row["approval"] else None
             ),
             history=[HistoryEvent.model_validate(item) for item in history_raw],
+            version=version,
             created_at=_parse_dt(row["created_at"]),
             updated_at=_parse_dt(row["updated_at"]),
         )

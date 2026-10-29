@@ -5,17 +5,17 @@ from __future__ import annotations
 import os
 import threading
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 try:
-    from victim_app.redact import redact
-    from victim_app.state import append_log
-except ImportError:
     from redact import redact
     from state import append_log
+except ImportError:
+    from victim_app.redact import redact
+    from victim_app.state import append_log
 
 SENTINEL_ALERTS_URL = os.getenv("SENTINEL_ALERTS_URL", "http://127.0.0.1:8000/api/alerts")
 
@@ -44,7 +44,7 @@ def report_error(
         "captured_request": captured,
         "logs": logs[-20:],
         "repository_path": "victim_app",
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
     }
 
     def _send() -> None:
