@@ -1,6 +1,6 @@
 # SentinelAI
 
-AI-assisted incident response for **web services**. Built by **Team TriNova**.
+AI-assisted incident response for **web services**.
 
 SentinelAI is a **web app** (FastAPI backend + browser dashboard). It sits beside the apps it watches. It is not a desktop agent, and it does not silently rewrite your repo.
 
