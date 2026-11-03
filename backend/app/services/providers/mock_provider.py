@@ -103,8 +103,9 @@ class MockProvider(AIProvider):
         ):
             return AnalysisDraft(
                 hypothesis=(
-                    "The payments integration credential (`payments_api_key`) has expired or failed authentication (HTTP 401). "
-                    "Upstream payment authorization rejected the request because the key rotation window was missed."
+                    "The payments integration credential (`payments_api_key`) has expired or failed "
+                    "authentication (HTTP 401). Upstream payment authorization rejected the request "
+                    "because the key rotation window was missed."
                 ),
                 suspected_file="shop.py",
                 suspected_function="_charge_payments",
@@ -127,7 +128,8 @@ class MockProvider(AIProvider):
             return AnalysisDraft(
                 hypothesis=(
                     "The checkout worker process is experiencing severe heap exhaustion / memory pressure. "
-                    "Memory consumption exceeded the safety threshold (> 2MB), causing latency and health check failures."
+                    "Memory consumption exceeded the safety threshold (> 2MB), causing latency "
+                    "and health check failures."
                 ),
                 suspected_file="shop.py",
                 suspected_function="_run_checkout",
@@ -219,7 +221,8 @@ class MockProvider(AIProvider):
                 provider=self.name,
                 notes=(
                     f"No code patch applicable: incident is triaged as {category.value} (Track 1: Mitigation). "
-                    f"Recommended action is '{action}'. Execute simulated mitigation on the Overview tab instead of modifying source code."
+                    f"Recommended action is '{action}'. Execute simulated mitigation on the Overview tab "
+                    "instead of modifying source code."
                 ),
             )
 
