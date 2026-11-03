@@ -3,7 +3,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from backend.app.api.deps import get_current_actor
+from backend.app.core.exceptions import SentinelAIError
 from backend.app.models.schemas import IncidentCreate, IncidentPublic
+from backend.app.services.source_context import resolve_repository_path
 
 router = APIRouter(
     prefix="/api/incidents",
@@ -46,6 +48,33 @@ def get_incident_audit(
 ) -> list[dict[str, Any]]:
     return request.app.state.container.incidents.repository.list_audit(incident_id=incident_id)
 
+
+@router.get("/{incident_id}/source-file")
+def get_source_file(
+    incident_id: str,
+    path: str = Query(..., min_length=1, max_length=200),
+    request: Request = None,
+) -> dict[str, Any]:
+    incident = request.app.state.container.incidents.get(incident_id)
+    repo = resolve_repository_path(incident.repository_path, request.app.state.container.settings)
+    clean_path = path.replace("\\", "/").strip().lstrip("/")
+    target = (repo / clean_path).resolve()
+    if not target.is_relative_to(repo):
+        raise SentinelAIError("File path must stay inside the repository.", code="unsafe_path", status_code=400)
+    if not target.exists() or not target.is_file():
+        raise SentinelAIError(f"File not found: {path}", code="file_not_found", status_code=404)
+    if target.stat().st_size > 60_000:
+        raise SentinelAIError("File is too large to display.", code="file_too_large", status_code=400)
+    try:
+        content = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = target.read_text(encoding="latin-1", errors="replace")
+    return {
+        "path": clean_path,
+        "content": content,
+        "size_bytes": len(content.encode("utf-8")),
+        "line_count": len(content.splitlines()),
+    }
 
 
 @router.post("/{incident_id}/analyze", response_model=IncidentPublic)
