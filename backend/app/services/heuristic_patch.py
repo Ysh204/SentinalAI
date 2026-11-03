@@ -5,6 +5,9 @@ from __future__ import annotations
 import difflib
 import re
 from pathlib import Path
+from typing import Any
+
+from backend.app.models.incident import VerdictCategory
 
 _LINE_TOTAL_RETURN = re.compile(
     r"(^def _line_total\([^\n]+\n(?:[ \t]+[^\n]*\n)*?)"
@@ -65,14 +68,15 @@ def fix_sample_add(source: str) -> str | None:
     return _ADD_BUG.sub(r"\1return left + right", source, count=1)
 
 
-def synthesize(source_context: str) -> tuple[str, str] | None:
+def synthesize(source_context: str, incident: Any = None) -> tuple[str, str] | None:
+    # If the incident has already been triaged as an operational/mitigation issue, do not patch shop.py
+    if incident and getattr(incident, "verdict", None):
+        category = incident.verdict.category
+        if category and category != VerdictCategory.CODE_BUG:
+            return None
+
     files = parse_source_context(source_context)
-    if "shop.py" in files:
-        updated = guard_none_cart_line(files["shop.py"])
-        if updated:
-            return unified_diff("shop.py", files["shop.py"], updated), (
-                "Inserted a None guard in _line_total from the current shop.py source."
-            )
+    # Check sample app first if buggy_app is in the context
     for name, content in files.items():
         if Path(name).name == "buggy_app.py" or "def add(" in content:
             updated = fix_sample_add(content)
@@ -80,4 +84,22 @@ def synthesize(source_context: str) -> tuple[str, str] | None:
                 return unified_diff(name, content, updated), (
                     "Replaced subtraction with addition in add() from the current sample source."
                 )
+
+    if "shop.py" in files:
+        # Check if error/stack indicates code bug or NoneType
+        if incident:
+            msg = f"{incident.error_message} {incident.stack_trace or ''}".lower()
+            cat = getattr(incident.verdict, "category", None) if incident.verdict else None
+            is_code_bug = cat == VerdictCategory.CODE_BUG or any(
+                t in msg for t in ("none", "typeerror", "_line_total", "subscriptable")
+            )
+            if not is_code_bug:
+                return None
+
+        updated = guard_none_cart_line(files["shop.py"])
+        if updated:
+            return unified_diff("shop.py", files["shop.py"], updated), (
+                "Inserted a None guard in _line_total from the current shop.py source."
+            )
+
     return None
