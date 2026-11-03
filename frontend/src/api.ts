@@ -25,8 +25,17 @@ export function setApiKey(key: string): void {
   }
 }
 
+const DEFAULT_REMOTE_BACKEND = 'https://sentinelai-backend-mwhf.onrender.com'
+
 function bases(): string[] {
   if (envBase) return [envBase.replace(/\/$/, '')]
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return [DEFAULT_REMOTE_BACKEND]
+  }
   // Hit uvicorn on the machine that opened the browser first. The Vite proxy
   // often 502s when the UI runs in WSL and the API runs on Windows.
   return ['http://127.0.0.1:8000', 'http://localhost:8000', '']
