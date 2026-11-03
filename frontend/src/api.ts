@@ -1,6 +1,9 @@
 import type { HealthResponse, Incident, IncidentCreate, MetricsResponse } from './types'
 
-const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+const envBase = (
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (import.meta.env.VITE_APT_URL as string | undefined)
+)?.trim()
 const envApiKey = (import.meta.env.VITE_API_KEY as string | undefined)?.trim()
 const KEY_STORAGE = 'sentinel_api_key'
 
