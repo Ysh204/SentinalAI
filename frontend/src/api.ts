@@ -125,6 +125,10 @@ export const api = {
   mitigate: (id: string) => request<Incident>(`/api/incidents/${id}/mitigate`, { method: 'POST' }),
   postmortem: (id: string) =>
     request<Incident>(`/api/incidents/${id}/postmortem`, { method: 'POST' }),
+  getSourceFile: (incidentId: string, path: string) =>
+    request<{ path: string; content: string; size_bytes: number; line_count: number }>(
+      `/api/incidents/${incidentId}/source-file?path=${encodeURIComponent(path)}`
+    ),
   ingestAlert: (payload: Record<string, unknown>) =>
     request<Incident>('/api/alerts', { method: 'POST', body: JSON.stringify(payload) }),
   breakCheckout: (mode: string) =>
