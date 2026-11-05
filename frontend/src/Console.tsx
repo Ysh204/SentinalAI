@@ -484,7 +484,9 @@ export default function Console() {
   const canApprove =
     (incident?.status === 'VALIDATED' && Boolean(incident.validation_results?.overall_passed)) ||
     incident?.status === 'PATCH_VERIFIED' ||
-    incident?.status === 'MITIGATION_PROPOSED'
+    incident?.status === 'MITIGATION_PROPOSED' ||
+    Boolean(incident?.validation_results?.overall_passed && incident?.status !== 'APPROVED') ||
+    Boolean(incident?.mitigation && incident?.mitigation.status === 'proposed' && incident?.status !== 'MITIGATED' && incident?.status !== 'APPROVED')
   const active = incident ? stepIndex(incident.status) : 0
   const counts = incidents.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = (acc[item.status] ?? 0) + 1
@@ -635,7 +637,7 @@ export default function Console() {
               <strong>{health ? 'Backend live' : 'Offline sandbox'}</strong>
               <small>
                 {health
-                  ? `${health.ai_provider} · db ready`
+                  ? `DB ready`
                   : 'Start uvicorn on :8000'}
               </small>
             </div>

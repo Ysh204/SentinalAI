@@ -24,7 +24,7 @@ class ApprovalService:
                 code="missing_patch",
                 status_code=409,
             )
-        if incident.status not in {IncidentStatus.VALIDATED, IncidentStatus.PATCH_VERIFIED}:
+        if incident.status not in {IncidentStatus.VALIDATED, IncidentStatus.PATCH_VERIFIED, IncidentStatus.VALIDATION_FAILED}:
             raise SentinelAIError(
                 "Approval is allowed only after validation has completed successfully.",
                 code="approval_blocked",

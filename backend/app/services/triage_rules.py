@@ -171,7 +171,7 @@ def _looks_like_code_bug(text: str, incident: IncidentPublic) -> tuple[bool, flo
             "'none'",
         )
     )
-    is_bug = type_error and (in_app or "traceback" in stack or 'file "' in stack or "_line_total" in text)
+    is_bug = type_error or (in_app and ("traceback" in stack or 'file "' in stack or "_line_total" in text))
     if not is_bug:
         return False, 0.0
     confidence = 0.88
