@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 DEFAULT_CORS_ORIGINS = (
     "http://localhost:8501",
@@ -120,7 +120,7 @@ def load_settings() -> Settings:
         team_name="Team TriNova",
         ai_provider=(_env("AI_PROVIDER", "mock") or "mock").lower(),
         gemini_api_key=_env("GEMINI_API_KEY"),
-        gemini_model=_env("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash",
+        gemini_model=_env("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash",
         database_path=database_path,
         workspace_root=workspace_root,
         sample_app_path=PROJECT_ROOT / "sample_app",

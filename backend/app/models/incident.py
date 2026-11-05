@@ -51,7 +51,9 @@ ANALYZE_FROM = {
     IncidentStatus.RECEIVED,
     IncidentStatus.FAILED,
     IncidentStatus.TRIAGED,
+    IncidentStatus.ANALYZED,
     IncidentStatus.MITIGATION_PROPOSED,
+    IncidentStatus.PATCH_GENERATED,
 }
 GENERATE_PATCH_FROM = {
     IncidentStatus.ANALYZED,
@@ -74,6 +76,8 @@ TRIAGE_FROM = {
     IncidentStatus.RECEIVED,
     IncidentStatus.FAILED,
     IncidentStatus.TRIAGED,
+    IncidentStatus.ANALYZED,
+    IncidentStatus.MITIGATION_PROPOSED,
 }
 MITIGATE_PROPOSE_FROM = {
     IncidentStatus.TRIAGED,
@@ -84,6 +88,8 @@ APPROVE_FROM = {
     IncidentStatus.VALIDATED,
     IncidentStatus.PATCH_VERIFIED,
     IncidentStatus.MITIGATION_PROPOSED,
+    IncidentStatus.VALIDATION_FAILED,
+    IncidentStatus.ANALYZED,
 }
 REJECT_FROM = {
     IncidentStatus.ANALYZED,

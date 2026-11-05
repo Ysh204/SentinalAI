@@ -94,6 +94,13 @@ def _break_and_ingest(container, mode: str) -> IncidentPublic:
             error = str(body.get("detail") or body or f"HTTP {status_code}")
             captured["status_code"] = status_code
             captured["inject"] = mode
+            if mode == "code_bug":
+                stack = (
+                    "Traceback (most recent call last):\n"
+                    '  File "victim_app/shop.py", line 42, in _line_total\n'
+                    '    return int(item["price"]) * int(item["qty"])\n'
+                    "TypeError: 'NoneType' object is not subscriptable\n"
+                )
             ctx = httpx.get(f"{url}/control/context", timeout=2.0)
             if ctx.status_code == 200:
                 logs = list(ctx.json().get("recent_logs") or [])

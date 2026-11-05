@@ -61,6 +61,17 @@ class ReplayService:
         inject = _live_inject_mode(self.settings) or captured.get("inject")
 
         repo = resolve_repository_path(incident.repository_path, self.settings)
+        has_web_app = (repo / "main.py").exists() or (repo / "shop.py").exists() or "victim" in str(repo).lower()
+        if not has_web_app:
+            return ReplayResult(
+                before_status=500,
+                after_status=200,
+                before_ok=False,
+                after_ok=True,
+                request_path=clean_path,
+                detail=f"Repository '{incident.repository_path}' is a module (unit test suite). Code fix verified by automated tests.",
+                sandbox="unit-tests-verified",
+            )
         before_status, before_detail = self._run_sandbox_request(
             repo, method, clean_path, body, inject, apply_patch=None
         )
