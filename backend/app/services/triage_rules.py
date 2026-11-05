@@ -11,19 +11,23 @@ from backend.app.models.schemas import IncidentPublic, Verdict
 LOW_CONFIDENCE = 0.55
 
 
+def _clean_logs(logs: list[Any] | None) -> list[str]:
+    cleaned = []
+    for line in logs or []:
+        text = str(line)
+        if "injected failure_mode=" in text:
+            continue
+        cleaned.append(text)
+    return cleaned
+
+
 def observable_victim(context: dict[str, Any]) -> dict[str, Any]:
     if not context:
         return {"recent_logs": []}
     victim_data = context.get("victim")
     victim = dict(victim_data if isinstance(victim_data, dict) else context)
     victim.pop("failure_mode", None)
-    logs = []
-    for line in victim.get("recent_logs") or []:
-        text = str(line)
-        if "injected failure_mode=" in text:
-            continue
-        logs.append(line)
-    victim["recent_logs"] = logs
+    victim["recent_logs"] = _clean_logs(victim.get("recent_logs"))
     return victim
 
 
@@ -31,16 +35,18 @@ def _blob(incident: IncidentPublic, context: dict[str, Any]) -> str:
     victim = observable_victim(context)
     config = victim.get("config") or {}
     deps = victim.get("dependency_health") or {}
+    incident_logs = _clean_logs(incident.logs[-20:])
+    victim_logs = _clean_logs(victim.get("recent_logs") or [])[-20:]
     parts = [
         incident.title,
         incident.error_message,
         incident.stack_trace,
-        " ".join(incident.logs[-20:]),
+        " ".join(incident_logs),
         str(victim.get("last_deploy_diff") or ""),
         str(victim.get("deploy_version") or ""),
         str(config.get("payments_api_key_status") or ""),
         str(deps.get("payments") or ""),
-        " ".join(str(line) for line in (victim.get("recent_logs") or [])[-20:]),
+        " ".join(victim_logs),
         str(context.get("collector_error") or ""),
     ]
     return " ".join(parts).lower()
@@ -159,7 +165,7 @@ def _looks_like_code_bug(text: str, incident: IncidentPublic) -> tuple[bool, flo
     in_app_tokens = ("shop.py", "_line_total", "victim_app", "buggy_app")
     in_app = any(token in stack or token in text for token in in_app_tokens)
     type_error = any(
-        token in error or token in stack or token in text
+        token in error or token in stack
         for token in (
             "typeerror",
             "attributeerror",
@@ -171,7 +177,12 @@ def _looks_like_code_bug(text: str, incident: IncidentPublic) -> tuple[bool, flo
             "'none'",
         )
     )
-    is_bug = type_error or (in_app and ("traceback" in stack or 'file "' in stack or "_line_total" in text))
+    is_bug = type_error and (
+        in_app
+        or "traceback" in stack
+        or 'file "' in stack
+        or "_line_total" in text
+    )
     if not is_bug:
         return False, 0.0
     confidence = 0.88

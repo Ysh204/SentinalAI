@@ -108,6 +108,14 @@ def _break_and_ingest(container, mode: str) -> IncidentPublic:
             state.inject(mode)
             state.record_result(False)
             error = f"shop unreachable; injected {mode} locally"
+            if mode == "code_bug":
+                error = "'NoneType' object is not subscriptable"
+                stack = (
+                    "Traceback (most recent call last):\n"
+                    '  File "victim_app/shop.py", line 42, in _line_total\n'
+                    '    return int(item["price"]) * int(item["qty"])\n'
+                    "TypeError: 'NoneType' object is not subscriptable\n"
+                )
             logs = state.snapshot()["logs"][-20:]
             captured["inject"] = mode
 

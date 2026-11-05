@@ -4,14 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
-
-# Ensure project root is in sys.path
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -107,6 +100,13 @@ app = create_app()
 
 
 if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
     import uvicorn
+
+    _project_root = Path(__file__).resolve().parents[2]
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
 
     uvicorn.run("backend.app.main:app", host="127.0.0.1", port=8000, reload=True)

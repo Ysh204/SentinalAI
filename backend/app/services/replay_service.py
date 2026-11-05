@@ -69,7 +69,10 @@ class ReplayService:
                 before_ok=False,
                 after_ok=True,
                 request_path=clean_path,
-                detail=f"Repository '{incident.repository_path}' is a module (unit test suite). Code fix verified by automated tests.",
+                detail=(
+                    f"Repository '{incident.repository_path}' is a module (unit test suite). "
+                    "Code fix verified by automated tests."
+                ),
                 sandbox="unit-tests-verified",
             )
         before_status, before_detail = self._run_sandbox_request(
