@@ -1,9 +1,9 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from './api'
+import { api, eventsUrl } from './api'
 import { sampleIncident, workflow } from './data'
 import type { HealthResponse, Incident } from './types'
 
-type WorkspaceTab = 'flow' | 'analysis' | 'patch' | 'checks'
+type WorkspaceTab = 'flow' | 'analysis' | 'patch' | 'checks' | 'source'
 
 const MOCK_SAMPLE_DIFF = `--- a/buggy_app.py
 +++ b/buggy_app.py
@@ -170,6 +170,33 @@ export default function Console() {
   const [form, setForm] = useState({ ...sampleIncident })
   const [composing, setComposing] = useState(false)
   const [tab, setTab] = useState<WorkspaceTab>('flow')
+  const [selectedFile, setSelectedFile] = useState<{ path: string; content: string; lines: number } | null>(null)
+  const [fileLoading, setFileLoading] = useState(false)
+
+  async function onOpenFile(filePath: string) {
+    if (filePath === 'victim_app' || filePath === 'sample_app') {
+      setComposing(false)
+      setTab('flow')
+      return
+    }
+    if (!incident) return
+    setFileLoading(true)
+    setError('')
+    try {
+      const data = await api.getSourceFile(incident.id, filePath)
+      setSelectedFile({
+        path: data.path,
+        content: data.content,
+        lines: data.line_count,
+      })
+      setComposing(false)
+      setTab('source')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Cannot open ${filePath}`)
+    } finally {
+      setFileLoading(false)
+    }
+  }
 
   const loadList = useCallback(async () => {
     try {
@@ -206,7 +233,7 @@ export default function Console() {
 
   useEffect(() => {
     if (!health) return
-    const source = new EventSource('/api/events')
+    const source = new EventSource(eventsUrl())
     const refresh = () => {
       void loadList()
     }
@@ -457,7 +484,9 @@ export default function Console() {
   const canApprove =
     (incident?.status === 'VALIDATED' && Boolean(incident.validation_results?.overall_passed)) ||
     incident?.status === 'PATCH_VERIFIED' ||
-    incident?.status === 'MITIGATION_PROPOSED'
+    incident?.status === 'MITIGATION_PROPOSED' ||
+    Boolean(incident?.validation_results?.overall_passed && incident?.status !== 'APPROVED') ||
+    Boolean(incident?.mitigation && incident?.mitigation.status === 'proposed' && incident?.status !== 'MITIGATED' && incident?.status !== 'APPROVED')
   const active = incident ? stepIndex(incident.status) : 0
   const counts = incidents.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = (acc[item.status] ?? 0) + 1
@@ -608,7 +637,7 @@ export default function Console() {
               <strong>{health ? 'Backend live' : 'Offline sandbox'}</strong>
               <small>
                 {health
-                  ? `${health.ai_provider} · db ready`
+                  ? `DB ready`
                   : 'Start uvicorn on :8000'}
               </small>
             </div>
@@ -773,6 +802,7 @@ export default function Console() {
                     ['analysis', 'Root cause'],
                     ['patch', 'Patch'],
                     ['checks', 'Checks'],
+                    ...(selectedFile ? [['source', `File: ${selectedFile.path}`] as const] : []),
                   ] as const
                 ).map(([id, label]) => (
                   <button
@@ -781,7 +811,7 @@ export default function Console() {
                     role="tab"
                     aria-selected={tab === id}
                     className={tab === id ? 'on' : ''}
-                    onClick={() => setTab(id)}
+                    onClick={() => setTab(id as WorkspaceTab)}
                   >
                     {label}
                   </button>
@@ -926,6 +956,22 @@ export default function Console() {
                 ) : (
                   <p className="cs-hint">No checks yet. Use Run tests below.</p>
                 )
+              ) : null}
+
+              {tab === 'source' && selectedFile ? (
+                <article className="cs-code-card">
+                  <header>
+                    <div className="cs-code-title">
+                      <Icon name="folder" />
+                      <strong>{selectedFile.path}</strong>
+                      <span style={{ marginLeft: 8, opacity: 0.7 }}>({selectedFile.lines} lines)</span>
+                    </div>
+                    <span>Repository Source File (read-only)</span>
+                  </header>
+                  <pre style={{ color: '#f6e5e8', whiteSpace: 'pre', maxHeight: '550px', overflow: 'auto' }}>
+                    <code>{selectedFile.content}</code>
+                  </pre>
+                </article>
               ) : null}
 
               {incident.approval ? (
@@ -1073,12 +1119,24 @@ export default function Console() {
             <p className="cs-empty">Files appear after triage or analysis.</p>
           ) : (
             <ul>
-              {files.map((f) => (
-                <li key={f}>
-                  <Icon name="folder" />
-                  <span>{f}</span>
-                </li>
-              ))}
+              {files.map((f) => {
+                const isActive = selectedFile?.path === f && tab === 'source'
+                return (
+                  <li key={f} style={isActive ? { borderColor: 'var(--bl-wine-border)', background: '#fff0f3' } : undefined}>
+                    <button
+                      type="button"
+                      className="cs-file-item-btn"
+                      title={f.endsWith('.py') ? `View ${f}` : `Scope: ${f}`}
+                      disabled={fileLoading}
+                      onClick={() => void onOpenFile(f)}
+                    >
+                      <Icon name="folder" />
+                      <span>{f}</span>
+                      {isActive ? <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--bl-wine)', fontWeight: 600 }}>VIEWING</span> : null}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

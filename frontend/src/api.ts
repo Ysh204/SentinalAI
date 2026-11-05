@@ -1,9 +1,41 @@
 import type { HealthResponse, Incident, IncidentCreate, MetricsResponse } from './types'
 
-const envBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+const envBase = (
+  (import.meta.env.VITE_API_URL as string | undefined) ||
+  (import.meta.env.VITE_APT_URL as string | undefined)
+)?.trim()
+const envApiKey = (import.meta.env.VITE_API_KEY as string | undefined)?.trim()
+const KEY_STORAGE = 'sentinel_api_key'
+
+// Anything in VITE_* is public in the built bundle. Prefer a key the operator types in at runtime;
+// it lives in sessionStorage only, so it is never shipped to other visitors.
+export function storedKey(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(KEY_STORAGE) ?? envApiKey
+  } catch {
+    return envApiKey
+  }
+}
+
+export function setApiKey(key: string): void {
+  try {
+    window.sessionStorage.setItem(KEY_STORAGE, key)
+  } catch {
+    /* storage unavailable: the next request will prompt again */
+  }
+}
+
+const DEFAULT_REMOTE_BACKEND = 'https://sentinelai-backend-mwhf.onrender.com'
 
 function bases(): string[] {
   if (envBase) return [envBase.replace(/\/$/, '')]
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return [DEFAULT_REMOTE_BACKEND]
+  }
   // Hit uvicorn on the machine that opened the browser first. The Vite proxy
   // often 502s when the UI runs in WSL and the API runs on Windows.
   return ['http://127.0.0.1:8000', 'http://localhost:8000', '']
@@ -17,9 +49,18 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   let lastError: ApiError | undefined
-  const extra = { headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init }
+  const key = storedKey()
+  const authHeaders: Record<string, string> = key ? { Authorization: `Bearer ${key}` } : {}
+  const extra: RequestInit = {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...((init?.headers as Record<string, string>) ?? {}),
+    },
+  }
 
   for (const base of bases()) {
     let response: Response
@@ -34,9 +75,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     if (!response.ok) {
-      if (response.status >= 500 && !envBase) {
-        lastError = new ApiError('Cannot reach uvicorn on this address; trying the next.', response.status)
+      if ((response.status === 502 || response.status === 504) && !envBase) {
+        lastError = new ApiError('Gateway error on this address; trying the next.', response.status)
         continue
+      }
+      if (response.status === 401 && !retried && typeof window !== 'undefined') {
+        const entered = window.prompt('This SentinelAI server requires an API key:')
+        if (entered?.trim()) {
+          setApiKey(entered.trim())
+          return request<T>(path, init, true)
+        }
       }
       let detail = response.statusText
       try {
@@ -60,7 +108,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<HealthResponse>('/health'),
-  listIncidents: () => request<Incident[]>('/api/incidents'),
+  listIncidents: (limit = 100, offset = 0) =>
+    request<Incident[]>(`/api/incidents?limit=${limit}&offset=${offset}`),
   getIncident: (id: string) => request<Incident>(`/api/incidents/${id}`),
   createIncident: (payload: IncidentCreate) =>
     request<Incident>('/api/incidents', {
@@ -88,10 +137,26 @@ export const api = {
   mitigate: (id: string) => request<Incident>(`/api/incidents/${id}/mitigate`, { method: 'POST' }),
   postmortem: (id: string) =>
     request<Incident>(`/api/incidents/${id}/postmortem`, { method: 'POST' }),
+  getSourceFile: (incidentId: string, path: string) =>
+    request<{ path: string; content: string; size_bytes: number; line_count: number }>(
+      `/api/incidents/${incidentId}/source-file?path=${encodeURIComponent(path)}`
+    ),
   ingestAlert: (payload: Record<string, unknown>) =>
     request<Incident>('/api/alerts', { method: 'POST', body: JSON.stringify(payload) }),
   breakCheckout: (mode: string) =>
     request<Incident>('/api/demo/break', { method: 'POST', body: JSON.stringify({ mode }) }),
   simulateIncident: () => request<Incident>('/api/demo/simulate', { method: 'POST' }),
   metrics: () => request<MetricsResponse>('/api/metrics'),
+  audit: (incidentId?: string) =>
+    request<Array<Record<string, unknown>>>(
+      incidentId ? `/api/incidents/${incidentId}/audit` : '/api/incidents/audit'
+    ),
 }
+
+export function eventsUrl(): string {
+  const base = envBase ? envBase.replace(/\/$/, '') : (bases()[0] || '')
+  const key = storedKey()
+  const query = key ? `?access_token=${encodeURIComponent(key)}` : ''
+  return `${base}/api/events${query}`
+}
+

@@ -47,7 +47,7 @@ export default function Landing() {
   const [email, setEmail] = useState('')
   const [subscribed, setSubscribed] = useState(false)
   const [health, setHealth] = useState<HealthResponse | null>(null)
-  const [incidentCount, setIncidentCount] = useState(3254)
+  const [incidentCount, setIncidentCount] = useState(0)
   const [statsOn, setStatsOn] = useState(false)
   const statsRef = useRef<HTMLElement>(null)
   const heroRef = useRef<HTMLElement>(null)
@@ -70,10 +70,10 @@ export default function Landing() {
       })),
     [yearly],
   )
-  const stat58 = useCountUp(58, statsOn)
-  const stat73 = useCountUp(73, statsOn)
-  const stat82 = useCountUp(82, statsOn)
-  const stat91 = useCountUp(91, statsOn)
+  const statModes = useCountUp(5, statsOn)
+  const statGates = useCountUp(4, statsOn)
+  const statWrites = useCountUp(0, statsOn)
+  const statTimeout = useCountUp(30, statsOn)
 
   useLayoutEffect(() => {
     const hero = heroRef.current
@@ -312,13 +312,9 @@ export default function Landing() {
               <span>Interactive</span>
             </div>
             <div className="trusted">
-              <div className="mini-logos">
-                <i />
-                <i />
-                <i />
-                <i />
-              </div>
-              Trust by 5K+ businesses
+              <span>Sandbox pytest</span>
+              <span>HTTP replay</span>
+              <span>Human sign-off</span>
             </div>
           </div>
         </section>
@@ -381,9 +377,8 @@ export default function Landing() {
                 </div>
               </Reveal>
               <aside className="founder">
-                <img src="https://i.pravatar.cc/180?img=68" alt="Team TriNova" />
                 <strong>Team TriNova</strong>
-                <span>Founders</span>
+                <span>Open-source remediation demo</span>
               </aside>
             </div>
           </div>
@@ -427,31 +422,31 @@ export default function Landing() {
             <SectionRail label="The Statistics" num="003" />
             <Reveal>
               <h2>
-                Teams are replacing ad-hoc incident chats with a gated AI
-                repair loop — and the fastest ones already review diffs, not
-                vibes.
+                Built for autonomous remediation demos: five injectable shop
+                failures, a gated repair loop, and zero writes to the original
+                tree.
               </h2>
             </Reveal>
             <div className="stat-row">
               <a className="gold-tag dark-gold" href="#console">
-                <b>Book a Call</b>
+                <b>Open Console</b>
                 <small>&gt;&gt;&gt;</small>
               </a>
               <div className="big-stat">
-                {stat58}
-                <span>%</span>
+                {statModes}
+                <span>modes</span>
               </div>
               <div className="stat">
-                <strong>{stat73}%</strong>
-                <p>of teams expect AI to improve daily productivity</p>
+                <strong>{statGates}</strong>
+                <p>gated stages before a human approve/reject decision</p>
               </div>
               <div className="stat">
-                <strong>{stat82}%</strong>
-                <p>of companies are increasing investment in AI automation</p>
+                <strong>{statWrites}</strong>
+                <p>writes to the original repository — patches stay in a temp workspace</p>
               </div>
               <div className="stat">
-                <strong>{stat91}%</strong>
-                <p>plan to adopt AI agents within the next two years</p>
+                <strong>{statTimeout}s</strong>
+                <p>pytest timeout inside a scrubbed sandbox subprocess</p>
               </div>
             </div>
           </div>
@@ -513,9 +508,9 @@ export default function Landing() {
 
         <section className="testimonials">
           <div className="frame">
-            <SectionRail label="Testimonials" num="006" />
+            <SectionRail label="Design constraints" num="006" />
             <div className="quote-wrap fade-slide" key={t.name}>
-              <img src={t.img} alt="" />
+              {t.img ? <img src={t.img} alt="" /> : null}
               <blockquote>“{t.quote}”</blockquote>
               <div className="who">
                 <strong>{t.name}</strong>
@@ -543,12 +538,12 @@ export default function Landing() {
             </div>
             <div className="kpi-row">
               <div>
-                <small>Workflows Designed</small>
-                <b>223</b>
+                <small>Original repo writes</small>
+                <b>0</b>
               </div>
               <div>
-                <small>Hours Saved Monthly</small>
-                <b>32K</b>
+                <small>Human sign-off</small>
+                <b>Required</b>
               </div>
             </div>
           </div>
